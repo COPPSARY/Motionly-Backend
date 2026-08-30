@@ -9,7 +9,7 @@ This repository will provide the optional server-side capabilities required for 
 
 ## Project status
 
-This repository is currently in the planning and scaffolding stage. The implementation should proceed in the phases described below, beginning with the database and project-persistence foundation.
+Phase 2 is implemented: PostgreSQL/Drizzle persistence, Supabase email and Google authentication, opaque server-side sessions, personal-workspace provisioning, and role-based workspace membership APIs. Project persistence and rendering remain roadmap work.
 
 ## Goals
 
@@ -38,17 +38,17 @@ This repository is currently in the planning and scaffolding stage. The implemen
 | Language | TypeScript | Shared types with the Motionly ecosystem |
 | HTTP API | Express.js | OpenAPI is the client contract |
 | Validation | Zod | Request and response schemas remain framework-neutral |
-| Database | PostgreSQL | No hosted-provider-specific schema requirements |
+| Database | Supabase PostgreSQL | Standard PostgreSQL accessed through Drizzle |
 | ORM and migrations | Drizzle ORM and Drizzle Kit | Generated SQL migrations are committed |
 | Authentication | Adapter-based JWT/OIDC authentication | Supabase Auth can be the first adapter |
-| Object storage | S3-compatible storage adapter | Supabase Storage, AWS S3, MinIO, or Cloudflare R2 |
+| Object storage | Deferred to Phase 4 | Provider will be selected when asset storage is implemented |
 | Job queue | Queue adapter | PostgreSQL/Supabase Queues initially; Redis/BullMQ when needed |
 | Rendering | Separate Node.js worker in an isolated container | Never runs inside the API process |
-| Local development | Docker Compose | PostgreSQL and MinIO included locally |
+| Local development | Supabase | Supabase provides database and authentication |
 | API documentation | OpenAPI | Used to generate or verify frontend contracts |
 | Testing | Vitest plus integration tests | Testcontainers or Docker Compose for infrastructure tests |
 
-Supabase is a suitable hosted default because it combines PostgreSQL, authentication, storage, and row-level security. It must remain an optional provider: a self-hosted installation should be able to run with ordinary PostgreSQL, an OIDC-compatible identity provider, and S3-compatible object storage.
+Motionly uses one Supabase project for PostgreSQL and authentication. The API connects directly to the project's PostgreSQL endpoint through Drizzle and calls Supabase Auth through its HTTPS API.
 
 ## System architecture
 
@@ -340,7 +340,7 @@ Render submission returns `202 Accepted`. Clients poll job state initially; serv
 The Motionly frontend remains independently runnable. Server features are enabled only when an API URL is configured.
 
 ```env
-VITE_MOTIONLY_API_URL=http://localhost:4000
+VITE_MOTIONLY_API_URL=http://localhost:3000
 ```
 
 Expected behavior:
@@ -377,23 +377,16 @@ The initial `.env.example` should document variables without containing usable s
 ```env
 NODE_ENV=development
 API_HOST=0.0.0.0
-API_PORT=4000
+API_PORT=3000
+API_PUBLIC_URL=http://localhost:3000
+FRONTEND_ORIGINS=http://localhost:5173
 LOG_LEVEL=info
 
-DATABASE_URL=postgresql://motionly:motionly@localhost:5432/motionly
+DATABASE_URL=postgresql://postgres.PROJECT_REF:YOUR_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require
 
-AUTH_PROVIDER=development
-AUTH_ISSUER=
-AUTH_AUDIENCE=
-AUTH_JWKS_URL=
-
-STORAGE_PROVIDER=s3
-STORAGE_ENDPOINT=http://localhost:9000
-STORAGE_REGION=us-east-1
-STORAGE_BUCKET=motionly
-STORAGE_ACCESS_KEY=
-STORAGE_SECRET_KEY=
-STORAGE_FORCE_PATH_STYLE=true
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
+SESSION_ENCRYPTION_KEY=replace_with_base64_encoded_32_byte_key
+SESSION_COOKIE_SECURE=false
 
 QUEUE_PROVIDER=postgres
 RENDER_JOB_TIMEOUT_SECONDS=900
@@ -412,7 +405,7 @@ Environment variables must be parsed and validated once at process startup. Inva
 - Scaffold the Express.js API with `/health` and `/ready` endpoints.
 - Add structured request logging and request IDs.
 - Add environment validation and `.env.example`.
-- Add Docker Compose with PostgreSQL and MinIO.
+- Use Supabase for PostgreSQL and authentication.
 - Add continuous integration for type-checking, tests, linting, and builds.
 
 **Exit condition:** a fresh contributor can clone the repository, start dependencies, run the API, and receive successful health and readiness responses.
@@ -445,7 +438,6 @@ Environment variables must be parsed and validated once at process startup. Inva
 
 - Define the storage-provider interface.
 - Implement the S3-compatible adapter.
-- Add local MinIO support.
 - Add signed upload and download endpoints.
 - Verify uploads before creating active asset records.
 - Extract safe metadata for supported media.
@@ -497,7 +489,7 @@ The repository should use multiple levels of verification:
 - Unit tests for domain rules, validation, adapters, and authorization decisions.
 - Database integration tests against real PostgreSQL migrations.
 - API integration tests using the Express application with Supertest, without opening a public port.
-- Storage contract tests shared by MinIO and hosted adapters.
+- Storage contract tests shared by the selected Phase 4 adapters.
 - Queue contract tests covering retries, duplicate delivery, cancellation, and stale jobs.
 - Renderer fixtures for deterministic frames and expected failures.
 - Security tests proving cross-workspace access is denied.
@@ -520,8 +512,7 @@ Every migration must be tested both from an empty database and from the previous
 
 ```text
 API + renderer on the developer machine
-PostgreSQL + MinIO through Docker Compose
-Development authentication adapter
+Supabase PostgreSQL and Auth
 ```
 
 ### Simple hosted deployment
@@ -529,9 +520,9 @@ Development authentication adapter
 ```text
 API on a Node.js host
 Renderer on a separate worker/container host
-Managed PostgreSQL
+Supabase PostgreSQL
 S3-compatible object storage
-Managed OIDC or Supabase Auth
+Supabase Auth
 ```
 
 ### Self-hosted production
@@ -540,13 +531,13 @@ Managed OIDC or Supabase Auth
 Reverse proxy
 Replicated API processes
 One or more isolated renderer workers
-PostgreSQL with backups
+Supabase PostgreSQL with backups
 S3-compatible storage
 Configured OIDC provider
 Durable queue
 ```
 
-The backend should never require Vercel, Supabase, or another single vendor to operate.
+The backend does not require Vercel, but Phase 2 requires Supabase for PostgreSQL and authentication.
 
 ## Initial delivery checklist
 
@@ -557,8 +548,7 @@ The first implementation pull request should contain only the foundation needed 
 - [ ] Shared TypeScript and lint configuration
 - [ ] Environment schema and `.env.example`
 - [ ] Express.js health and readiness endpoints
-- [ ] PostgreSQL Docker Compose service
-- [ ] MinIO Docker Compose service
+- [x] Supabase PostgreSQL connection through `DATABASE_URL`
 - [ ] Drizzle configuration and initial schema
 - [ ] Generated SQL migration
 - [ ] Unit and database integration test setup

@@ -50,4 +50,4 @@ Motionly API ----> PostgreSQL
 
 ## Development profiles
 
-Local development runs the API and renderer on the developer machine, with PostgreSQL and MinIO provided by Docker Compose. Hosted and production profiles can use managed PostgreSQL, S3-compatible storage, and OIDC/Supabase Auth without changing the core model.
+Local development runs the API and renderer on the developer machine and uses Supabase PostgreSQL and Auth. Hosted and production profiles use the same Supabase project for database and authentication.
