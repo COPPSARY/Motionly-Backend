@@ -36,7 +36,7 @@ This repository is currently in the planning and scaffolding stage. The implemen
 | --- | --- | --- |
 | Runtime | Node.js 20.19 or newer | Standard Node.js deployment |
 | Language | TypeScript | Shared types with the Motionly ecosystem |
-| HTTP API | Fastify | OpenAPI is the client contract |
+| HTTP API | Express.js | OpenAPI is the client contract |
 | Validation | Zod | Request and response schemas remain framework-neutral |
 | Database | PostgreSQL | No hosted-provider-specific schema requirements |
 | ORM and migrations | Drizzle ORM and Drizzle Kit | Generated SQL migrations are committed |
@@ -409,7 +409,7 @@ Environment variables must be parsed and validated once at process startup. Inva
 - Create npm workspaces for `apps/*` and `packages/*`.
 - Add strict shared TypeScript configuration.
 - Add linting, formatting, unit-test, type-check, and build scripts.
-- Scaffold the Fastify API with `/health` and `/ready` endpoints.
+- Scaffold the Express.js API with `/health` and `/ready` endpoints.
 - Add structured request logging and request IDs.
 - Add environment validation and `.env.example`.
 - Add Docker Compose with PostgreSQL and MinIO.
@@ -496,7 +496,7 @@ The repository should use multiple levels of verification:
 
 - Unit tests for domain rules, validation, adapters, and authorization decisions.
 - Database integration tests against real PostgreSQL migrations.
-- API integration tests using the actual Fastify application without opening a public port.
+- API integration tests using the Express application with Supertest, without opening a public port.
 - Storage contract tests shared by MinIO and hosted adapters.
 - Queue contract tests covering retries, duplicate delivery, cancellation, and stale jobs.
 - Renderer fixtures for deterministic frames and expected failures.
@@ -556,7 +556,7 @@ The first implementation pull request should contain only the foundation needed 
 - [ ] API and renderer application placeholders
 - [ ] Shared TypeScript and lint configuration
 - [ ] Environment schema and `.env.example`
-- [ ] Fastify health and readiness endpoints
+- [ ] Express.js health and readiness endpoints
 - [ ] PostgreSQL Docker Compose service
 - [ ] MinIO Docker Compose service
 - [ ] Drizzle configuration and initial schema
@@ -582,4 +582,3 @@ Neither repository should reach into the other repository's source files at runt
 ## License
 
 Choose and add an open-source license before accepting external contributions. Using the same Apache-2.0 license as the Motionly frontend is the simplest default unless the maintainers intentionally want different terms.
-
