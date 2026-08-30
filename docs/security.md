@@ -18,6 +18,15 @@ Every project, asset, and render operation is authorized at the workspace bounda
 - Never send database credentials, storage credentials, service-role keys, or authentication secrets to the browser.
 - Redact secrets and internal exception details from responses and logs.
 
+## Authentication sessions
+
+- Supabase authenticates email/password and Google identities; Express owns the application session.
+- The browser receives only a random opaque session cookie marked `HttpOnly`, `SameSite=Lax`, and `Secure` in production.
+- PostgreSQL stores a SHA-256 hash of that cookie. Supabase access and refresh tokens are encrypted with AES-256-GCM using `SESSION_ENCRYPTION_KEY`.
+- Cookie-authenticated mutations require a session-bound CSRF token.
+- Google login uses PKCE and a hashed, single-use attempt identifier with a ten-minute expiry.
+- Credentialed CORS and OAuth redirects are restricted to configured frontend origins.
+
 ## Operational controls
 
 - Use request-size limits and rate limits for public endpoints.

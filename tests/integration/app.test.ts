@@ -1,0 +1,174 @@
+import request from 'supertest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { createApp } from '../../apps/api/src/server.js';
+
+const identity = {
+  id: '00000000-0000-4000-8000-000000000001',
+  email: 'designer@example.com',
+  emailVerified: true,
+  displayName: 'Motion Designer',
+  avatarUrl: null,
+};
+
+function dependencies() {
+  return {
+    auth: {
+      signUpWithEmail: vi.fn(),
+      loginWithEmail: vi.fn().mockResolvedValue({
+        identity,
+        sessionToken: 'opaque-session',
+        csrfToken: 'csrf-token',
+      }),
+      beginGoogleLogin: vi.fn(),
+      completeGoogleLogin: vi.fn(),
+      completeEmailVerification: vi.fn().mockResolvedValue({
+        identity,
+        sessionToken: 'verified-session',
+        csrfToken: 'verified-csrf',
+      }),
+      logout: vi.fn(),
+    },
+    sessions: {
+      resolve: vi.fn().mockResolvedValue(null),
+    },
+    workspaces: {
+      list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(),
+      listMembers: vi.fn(), addMember: vi.fn(), updateMember: vi.fn(), removeMember: vi.fn(),
+    },
+  };
+}
+
+describe('Motionly API', () => {
+  it('accepts email registration at the top-level sign-up route', async () => {
+    const deps = dependencies();
+    const app = createApp({
+      services: deps,
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const response = await request(app)
+      .post('/v1/auth/sign-up')
+      .send({ email: 'NEW@EXAMPLE.COM', password: 'secret123' });
+
+    expect(response.status).toBe(202);
+    expect(response.body).toEqual({ data: { verificationRequired: true } });
+    expect(deps.auth.signUpWithEmail).toHaveBeenCalledWith('NEW@EXAMPLE.COM', 'secret123');
+
+    const removedRoute = await request(app)
+      .post('/v1/auth/email/sign-up')
+      .send({ email: 'new@example.com', password: 'secret123' });
+    expect(removedRoute.status).toBe(404);
+  });
+
+  it('sets opaque session and CSRF cookies after email login', async () => {
+    const deps = dependencies();
+    const app = createApp({
+      services: deps,
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const response = await request(app)
+      .post('/v1/auth/login')
+      .send({ email: 'DESIGNER@example.com', password: 'secret123' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.user.email).toBe('designer@example.com');
+    expect(response.headers['set-cookie']).toEqual(expect.arrayContaining([
+      expect.stringContaining('motionly_session=opaque-session'),
+      expect.stringContaining('motionly_csrf=csrf-token'),
+    ]));
+  });
+
+  it('rejects unauthenticated workspace requests', async () => {
+    const app = createApp({
+      services: dependencies(),
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const response = await request(app).get('/v1/workspaces');
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('requires a session-bound CSRF token for mutations', async () => {
+    const deps = dependencies();
+    deps.sessions.resolve.mockResolvedValue({
+      user: identity,
+      csrfToken: 'expected-csrf',
+    });
+    const app = createApp({
+      services: deps,
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const response = await request(app)
+      .post('/v1/workspaces')
+      .set('Cookie', ['motionly_session=opaque-session'])
+      .send({ name: 'Studio' });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('CSRF_INVALID');
+  });
+
+  it('returns the session CSRF token with the current user', async () => {
+    const deps = dependencies();
+    deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'oauth-csrf' });
+    const app = createApp({
+      services: deps,
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const response = await request(app)
+      .get('/v1/auth/me')
+      .set('Cookie', ['motionly_session=opaque-session']);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ user: identity, csrfToken: 'oauth-csrf' });
+  });
+
+  it('completes email verification and redirects to the frontend', async () => {
+    const deps = dependencies();
+    const app = createApp({
+      services: deps,
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const response = await request(app)
+      .get('/v1/auth/verify')
+      .query({ token_hash: 'confirmation-token-hash', type: 'email' });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('http://localhost:5173/?verified=true');
+    expect(deps.auth.completeEmailVerification).toHaveBeenCalledWith('confirmation-token-hash');
+    expect(response.headers['set-cookie']).toEqual(expect.arrayContaining([
+      expect.stringContaining('motionly_session=verified-session'),
+      expect.stringContaining('motionly_csrf=verified-csrf'),
+    ]));
+  });
+
+  it('does not expose the removed email-prefixed login and verification routes', async () => {
+    const app = createApp({
+      services: dependencies(),
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const loginResponse = await request(app)
+      .post('/v1/auth/email/login')
+      .send({ email: 'designer@example.com', password: 'secret123' });
+    const verifyResponse = await request(app)
+      .get('/v1/auth/email/verify')
+      .query({ token_hash: 'confirmation-token-hash', type: 'email' });
+
+    expect(loginResponse.status).toBe(404);
+    expect(verifyResponse.status).toBe(404);
+  });
+});

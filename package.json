@@ -2,9 +2,21 @@
   "name": "motionly_backend",
   "version": "1.0.0",
   "description": "The backend service for [Motionly](../motionly), a code-first motion graphics editor built around TypeScript compositions, HTML/SVG, GSAP timelines, and direct browser preview.",
-  "main": "index.js",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node --env-file=.env --watch --import tsx apps/api/src/server.ts",
+    "build": "npm run build:api",
+    "build:api": "tsc -p tsconfig.build.json",
+    "start": "node --env-file=.env dist/apps/api/src/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file=.env packages/database/src/migrate.ts"
   },
   "repository": {
     "type": "git",
@@ -13,12 +25,34 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/COPPSARY/Montionly_Backend/issues"
   },
   "homepage": "https://github.com/COPPSARY/Montionly_Backend#readme",
   "dependencies": {
-    "express": "^5.2.1"
+    "@supabase/supabase-js": "^2.112.4",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "pg": "^8.23.0",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.0",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "drizzle-kit": "^0.31.10",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   }
 }
