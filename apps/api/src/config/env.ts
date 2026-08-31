@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { normalizeDatabaseUrl } from '../../../../packages/database/src/connection-url.js';
 
 const booleanString = z.enum(['true', 'false']).optional().transform((value) => (value ?? 'false') === 'true');
+const logLevel = z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional();
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -17,6 +18,7 @@ const schema = z.object({
     { message: 'SESSION_ENCRYPTION_KEY must encode exactly 32 bytes' },
   ),
   SESSION_COOKIE_SECURE: booleanString,
+  LOG_LEVEL: logLevel,
 });
 
 export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, string | undefined>) {
@@ -39,6 +41,7 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     supabasePublishableKey: parsed.SUPABASE_PUBLISHABLE_KEY,
     sessionEncryptionKey: parsed.SESSION_ENCRYPTION_KEY,
     secureCookies: parsed.SESSION_COOKIE_SECURE,
+    logLevel: parsed.LOG_LEVEL,
   };
 }
 

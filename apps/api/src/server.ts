@@ -5,15 +5,18 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import type { Logger } from 'pino';
 
 import { SupabaseAuthProvider } from '../../../packages/auth/src/supabase-provider.js';
 import { TokenVault } from '../../../packages/auth/src/token-vault.js';
 import { createDatabase } from '../../../packages/database/src/client.js';
 import { parseEnvironment } from './config/env.js';
+import { createLogger } from './config/logger.js';
 import { AuthController, type AuthControllerService } from './controllers/auth.controller.js';
 import { WorkspaceController, type WorkspaceControllerService } from './controllers/workspace.controller.js';
 import { requireAuthentication, resolveSession } from './middleware/authentication.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
+import { createRequestLogger } from './middleware/request-logger.js';
 import { DatabaseAccountProvisioner, DatabaseAuthFlowStore, DatabaseSessionStore } from './repositories/auth.repository.js';
 import { DatabaseWorkspaceRepository } from './repositories/workspace.repository.js';
 import { createAuthRoutes } from './routes/auth.routes.js';
@@ -30,6 +33,8 @@ interface AppOptions {
   };
   frontendOrigins: string[];
   secureCookies: boolean;
+  logger?: Logger;
+  nodeEnv?: 'development' | 'test' | 'production';
 }
 
 export function createApp(options: AppOptions) {
@@ -39,6 +44,7 @@ export function createApp(options: AppOptions) {
 
   app.disable('x-powered-by');
   app.use(helmet());
+  app.use(createRequestLogger(options.logger ?? createLogger({ nodeEnv: 'test', logLevel: 'silent' }), options.nodeEnv ?? 'test'));
   app.use(cors({ origin: options.frontendOrigins, credentials: true }));
   app.use(express.json({ limit: '32kb' }));
   app.use(cookieParser());
@@ -46,7 +52,12 @@ export function createApp(options: AppOptions) {
   app.get('/health', (_request, response) => response.json({ status: 'ok' }));
   app.get('/ready', (_request, response) => response.json({ status: 'ready' }));
 
-  const authController = new AuthController(options.services.auth, frontendOrigin, options.secureCookies);
+  const authController = new AuthController(
+    options.services.auth,
+    frontendOrigin,
+    options.secureCookies,
+    options.nodeEnv === 'development',
+  );
   const workspaceController = new WorkspaceController(options.services.workspaces);
 
   app.use('/v1', resolveSession(options.services.sessions));
@@ -59,6 +70,7 @@ export function createApp(options: AppOptions) {
 
 export async function startServer() {
   const environment = parseEnvironment(process.env);
+  const logger = createLogger({ nodeEnv: environment.nodeEnv, ...(environment.logLevel ? { logLevel: environment.logLevel } : {}) });
   const { db, pool } = createDatabase(environment.databaseUrl);
   const provider = new SupabaseAuthProvider(environment.supabaseUrl, environment.supabasePublishableKey);
   const vault = new TokenVault(environment.sessionEncryptionKey);
@@ -74,16 +86,19 @@ export async function startServer() {
     services: { auth, sessions, workspaces },
     frontendOrigins: environment.frontendOrigins,
     secureCookies: environment.secureCookies,
+    logger,
+    nodeEnv: environment.nodeEnv,
   });
   const server = createServer(app);
 
   server.listen(environment.apiPort, environment.apiHost, () => {
-    console.log(`Motionly API listening on ${environment.apiPublicUrl}`);
+    logger.info({ port: environment.apiPort }, 'Motionly API started');
   });
 
   const shutdown = async () => {
     server.close();
     await pool.end();
+    logger.info('Motionly API stopped');
   };
   process.once('SIGINT', () => void shutdown());
   process.once('SIGTERM', () => void shutdown());

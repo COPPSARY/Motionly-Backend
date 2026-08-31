@@ -19,6 +19,13 @@ function slugPart(value: string) {
 export class DatabaseAccountProvisioner implements AccountProvisioner {
   constructor(private readonly db: Database) {}
 
+  async existsByEmail(email: string) {
+    const [user] = await this.db.select({ id: users.id }).from(users)
+      .where(sql`lower(${users.email}) = ${email.toLowerCase()}`)
+      .limit(1);
+    return Boolean(user);
+  }
+
   async provision(identity: Parameters<AccountProvisioner['provision']>[0]) {
     await this.db.transaction(async (transaction) => {
       await transaction.insert(users).values({
