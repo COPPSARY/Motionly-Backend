@@ -6,6 +6,19 @@ const identity = { id: '00000000-0000-4000-8000-000000000001', email: 'designer@
 const session = { identity, accessToken: 'access', refreshToken: 'refresh', expiresAt: new Date('2030-01-01T00:00:00.000Z') };
 
 describe('AuthService Supabase email authentication', () => {
+  it('tells a user with an existing verified account to log in', async () => {
+    const provider = { signUpWithPassword: vi.fn(), signInWithPassword: vi.fn(), exchangeEmailVerificationCode: vi.fn(), getGoogleAuthorizationUrl: vi.fn(), exchangeCode: vi.fn(), revokeSession: vi.fn() };
+    const accounts = { provision: vi.fn(), existsByEmail: vi.fn().mockResolvedValue(true) };
+    const service = new AuthService(provider, accounts, { create: vi.fn(), revoke: vi.fn() }, { create: vi.fn(), consume: vi.fn() }, { emailVerificationRedirect: 'http://localhost:3000/v1/auth/verify', oauthCallbackUrl: 'http://localhost:3000/v1/auth/callback' });
+
+    await expect(service.signUpWithEmail('designer@example.com', 'secret123')).rejects.toMatchObject({
+      status: 409,
+      code: 'ACCOUNT_ALREADY_EXISTS',
+      message: 'This account already exists. Please log in.',
+    });
+    expect(provider.signUpWithPassword).not.toHaveBeenCalled();
+  });
+
   it('asks Supabase to send a code-based confirmation email and stores its PKCE verifier', async () => {
     const provider = { signUpWithPassword: vi.fn().mockResolvedValue({ requiresVerification: true, identity: null, session: null, verifierState: 'pkce-state' }), signInWithPassword: vi.fn(), exchangeEmailVerificationCode: vi.fn(), getGoogleAuthorizationUrl: vi.fn(), exchangeCode: vi.fn(), revokeSession: vi.fn() };
     const flows = { create: vi.fn(), consume: vi.fn() };

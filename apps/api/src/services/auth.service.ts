@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 
 export interface AccountProvisioner {
   provision(identity: AuthIdentity): Promise<void>;
+  existsByEmail?(email: string): Promise<boolean>;
 }
 
 export interface SessionCreator {
@@ -37,10 +38,14 @@ export class AuthService {
 
   async signUpWithEmail(email: string, password: string) {
     if (!this.options || !this.flows) throw new Error('Auth service redirect URLs are not configured');
+    const normalizedEmail = email.trim().toLowerCase();
+    if (await this.accounts.existsByEmail?.(normalizedEmail)) {
+      throw new AppError(409, 'ACCOUNT_ALREADY_EXISTS', 'This account already exists. Please log in.');
+    }
     const attempt = randomBytes(32).toString('base64url');
     const separator = this.options.emailVerificationRedirect.includes('?') ? '&' : '?';
     const redirectTo = `${this.options.emailVerificationRedirect}${separator}attempt=${encodeURIComponent(attempt)}`;
-    const result = await this.provider.signUpWithPassword(email.trim().toLowerCase(), password, redirectTo);
+    const result = await this.provider.signUpWithPassword(normalizedEmail, password, redirectTo);
     await this.flows.create(attempt, result.verifierState);
     return result;
   }

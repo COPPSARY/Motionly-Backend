@@ -1,7 +1,9 @@
 import type { Response } from 'express';
 import { z } from 'zod';
 
+import { serializeLogError } from '../config/logger.js';
 import { CSRF_COOKIE, SESSION_COOKIE } from '../middleware/authentication.js';
+import { requestLogContext } from '../middleware/request-logger.js';
 import type { AuthIdentity } from '../../../../packages/auth/src/types.js';
 import type { AuthenticatedRequest } from '../types/http.js';
 
@@ -21,6 +23,7 @@ export class AuthController {
     private readonly auth: AuthControllerService,
     private readonly frontendOrigin: string,
     private readonly secureCookies: boolean,
+    private readonly includeErrorStack: boolean,
   ) {}
 
   signUp = async (request: AuthenticatedRequest, response: Response) => {
@@ -43,15 +46,32 @@ export class AuthController {
     response.redirect(302, new URL('/?verified=true', this.frontendOrigin).toString());
   };
 
-  google = async (_request: AuthenticatedRequest, response: Response) => {
-    response.redirect(302, (await this.auth.beginGoogleLogin()).url);
+  google = async (request: AuthenticatedRequest, response: Response) => {
+    const logContext = { ...requestLogContext(request), provider: 'google' };
+    request.log.info(logContext, 'OAuth login started');
+
+    try {
+      const { url } = await this.auth.beginGoogleLogin();
+      response.redirect(302, url);
+    } catch (error) {
+      request.log.error({ ...logContext, error: serializeLogError(error, this.includeErrorStack) }, 'OAuth login failed');
+      throw error;
+    }
   };
 
   callback = async (request: AuthenticatedRequest, response: Response) => {
-    const query = z.object({ code: z.string().min(1), attempt: z.string().min(1) }).parse(request.query);
-    const result = await this.auth.completeGoogleLogin(query.code, query.attempt);
-    this.setSessionCookies(response, result.sessionToken, result.csrfToken);
-    response.redirect(302, this.frontendOrigin);
+    const logContext = { ...requestLogContext(request), provider: 'google' };
+
+    try {
+      const query = z.object({ code: z.string().min(1), attempt: z.string().min(1) }).parse(request.query);
+      const result = await this.auth.completeGoogleLogin(query.code, query.attempt);
+      this.setSessionCookies(response, result.sessionToken, result.csrfToken);
+      request.log.info({ ...logContext, userId: result.identity.id }, 'OAuth login completed');
+      response.redirect(302, this.frontendOrigin);
+    } catch (error) {
+      request.log.error({ ...logContext, error: serializeLogError(error, this.includeErrorStack) }, 'OAuth login failed');
+      throw error;
+    }
   };
 
   me = async (request: AuthenticatedRequest, response: Response) => {

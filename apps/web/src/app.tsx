@@ -46,7 +46,9 @@ export function App() {
     const user = (response.body as { data?: { user?: User } })?.data?.user;
     if (user) setUser(user);
     if (path === '/v1/auth/sign-up' && response.status === 202) {
-      setVerificationNotice('Account created. Check your email and verify your account before logging in.');
+      setVerificationNotice('Check your email and verify your account before logging in.');
+    } else if (path === '/v1/auth/sign-up' && response.status === 409) {
+      setVerificationNotice('This account already exists. Please log in.');
     } else if (path === '/v1/auth/login') {
       setVerificationNotice(null);
     }
