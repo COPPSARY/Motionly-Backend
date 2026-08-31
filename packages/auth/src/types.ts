@@ -17,12 +17,13 @@ export interface SignUpResult {
   requiresVerification: boolean;
   identity: AuthIdentity | null;
   session: ProviderSession | null;
+  verifierState: string;
 }
 
 export interface AuthProvider {
   signUpWithPassword(email: string, password: string, redirectTo: string): Promise<SignUpResult>;
   signInWithPassword(email: string, password: string): Promise<ProviderSession>;
-  verifyEmailToken(tokenHash: string): Promise<ProviderSession>;
+  exchangeEmailVerificationCode(code: string, verifierState: string): Promise<ProviderSession>;
   getGoogleAuthorizationUrl(redirectTo: string): Promise<{ url: string; verifierState: string }>;
   exchangeCode(code: string, verifierState: string): Promise<ProviderSession>;
   revokeSession(accessToken: string): Promise<void>;

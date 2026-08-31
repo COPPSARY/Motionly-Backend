@@ -52,13 +52,11 @@ export class SupabaseAuthProvider implements AuthProvider {
   }
 
   async signUpWithPassword(email: string, password: string, redirectTo: string): Promise<SignUpResult> {
-    const { data, error } = await this.client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
+    const storage = new MemoryStorage();
+    const client = this.createClient(storage);
+    const { data, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
     if (error) throw error;
-    return {
-      requiresVerification: !data.session,
-      identity: data.user ? identityFromUser(data.user) : null,
-      session: data.session ? providerSession(data.session) : null,
-    };
+    return { requiresVerification: !data.session, identity: data.user ? identityFromUser(data.user) : null, session: data.session ? providerSession(data.session) : null, verifierState: storage.serialize() };
   }
 
   async signInWithPassword(email: string, password: string): Promise<ProviderSession> {
@@ -67,8 +65,10 @@ export class SupabaseAuthProvider implements AuthProvider {
     return providerSession(data.session);
   }
 
-  async verifyEmailToken(tokenHash: string): Promise<ProviderSession> {
-    const { data, error } = await this.client.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+  async exchangeEmailVerificationCode(code: string, verifierState: string): Promise<ProviderSession> {
+    const storage = MemoryStorage.deserialize(verifierState);
+    const client = this.createClient(storage);
+    const { data, error } = await client.auth.exchangeCodeForSession(code);
     if (error || !data.session) throw error ?? new Error('Supabase did not return a session');
     return providerSession(data.session);
   }

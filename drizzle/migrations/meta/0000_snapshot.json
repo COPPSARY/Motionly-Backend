@@ -1,5 +1,5 @@
 {
-  "id": "ec5ba0be-169a-40a6-9a16-4322d5004901",
+  "id": "0cba075f-83ce-43c4-8542-d28c6c99acab",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -89,10 +89,10 @@
         }
       },
       "foreignKeys": {
-        "auth_sessions_user_id_profiles_id_fk": {
-          "name": "auth_sessions_user_id_profiles_id_fk",
+        "auth_sessions_user_id_users_id_fk": {
+          "name": "auth_sessions_user_id_users_id_fk",
           "tableFrom": "auth_sessions",
-          "tableTo": "profiles",
+          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
@@ -147,8 +147,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.profiles": {
-      "name": "profiles",
+    "public.users": {
+      "name": "users",
       "schema": "",
       "columns": {
         "id": {
@@ -191,8 +191,8 @@
         }
       },
       "indexes": {
-        "profiles_email_lower_unique": {
-          "name": "profiles_email_lower_unique",
+        "users_email_lower_unique": {
+          "name": "users_email_lower_unique",
           "columns": [
             {
               "expression": "lower(\"email\")",
@@ -283,10 +283,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "workspace_members_user_id_profiles_id_fk": {
-          "name": "workspace_members_user_id_profiles_id_fk",
+        "workspace_members_user_id_users_id_fk": {
+          "name": "workspace_members_user_id_users_id_fk",
           "tableFrom": "workspace_members",
-          "tableTo": "profiles",
+          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
@@ -382,10 +382,10 @@
         }
       },
       "foreignKeys": {
-        "workspaces_owner_id_profiles_id_fk": {
-          "name": "workspaces_owner_id_profiles_id_fk",
+        "workspaces_owner_id_users_id_fk": {
+          "name": "workspaces_owner_id_users_id_fk",
           "tableFrom": "workspaces",
-          "tableTo": "profiles",
+          "tableTo": "users",
           "columnsFrom": [
             "owner_id"
           ],

@@ -16,13 +16,7 @@ Run the API and renderer on the developer machine while Supabase supplies Postgr
 
 Configure the Supabase project with email confirmation and Google login. In **Authentication > URL Configuration**, add both `API_PUBLIC_URL/v1/auth/verify` and `API_PUBLIC_URL/v1/auth/callback` to the allowed redirect URLs.
 
-In **Authentication > Email Templates > Confirm signup**, replace the confirmation link with this server-safe token-hash link:
-
-```html
-<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email">Confirm email</a>
-```
-
-The default Supabase PKCE `?code=...` link cannot be exchanged by this backend-owned email flow because the signup request and browser callback do not share a PKCE verifier. Generate `SESSION_ENCRYPTION_KEY` with the command documented in `.env.example`.
+Keep the default confirmation link (`{{ .ConfirmationURL }}`) in **Authentication > Email Templates > Confirm signup**. Supabase redirects it to `API_PUBLIC_URL/v1/auth/verify?code=...`, where the API exchanges the PKCE code and creates the Motionly session. Because the verifier is held by the API process that initiated signup, complete local verification without restarting that process. Generate `SESSION_ENCRYPTION_KEY` with the command documented in `.env.example`.
 
 The frontend points to the API through:
 

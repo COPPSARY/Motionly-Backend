@@ -10,7 +10,7 @@ const credentialsSchema = z.object({ email: z.email().max(320), password: z.stri
 export interface AuthControllerService {
   signUpWithEmail(email: string, password: string): Promise<unknown>;
   loginWithEmail(email: string, password: string): Promise<{ identity: AuthIdentity; sessionToken: string; csrfToken: string }>;
-  completeEmailVerification(tokenHash: string): Promise<{ identity: AuthIdentity; sessionToken: string; csrfToken: string }>;
+  completeEmailVerification(code: string, attempt: string): Promise<{ identity: AuthIdentity; sessionToken: string; csrfToken: string }>;
   beginGoogleLogin(): Promise<{ url: string }>;
   completeGoogleLogin(code: string, attempt: string): Promise<{ identity: AuthIdentity; sessionToken: string; csrfToken: string }>;
   logout(sessionToken: string): Promise<void>;
@@ -37,11 +37,8 @@ export class AuthController {
   };
 
   verifyEmail = async (request: AuthenticatedRequest, response: Response) => {
-    const query = z.object({
-      token_hash: z.string().min(1),
-      type: z.literal('email'),
-    }).parse(request.query);
-    const result = await this.auth.completeEmailVerification(query.token_hash);
+    const query = z.object({ code: z.string().uuid(), attempt: z.string().min(1) }).parse(request.query);
+    const result = await this.auth.completeEmailVerification(query.code, query.attempt);
     this.setSessionCookies(response, result.sessionToken, result.csrfToken);
     response.redirect(302, new URL('/?verified=true', this.frontendOrigin).toString());
   };

@@ -22,7 +22,7 @@ GET  /v1/auth/me
 POST /v1/auth/logout
 ```
 
-The backend owns the Supabase login flow and returns an opaque `motionly_session` HTTP-only cookie. Successful login responses also provide a session-bound CSRF token; clients must send it as `X-CSRF-Token` for cookie-authenticated mutations. Email signup requires verification in production. Supabase confirmation emails send a `token_hash` to the email verification endpoint, which verifies the address and creates the Motionly session. The Google endpoint starts a PKCE flow and the callback accepts each stored attempt only once.
+The backend owns the Supabase login flow and returns an opaque `motionly_session` HTTP-only cookie. Successful login responses also provide a session-bound CSRF token; clients must send it as `X-CSRF-Token` for cookie-authenticated mutations. Email signup requires verification in production. Supabase redirects confirmation links to `/v1/auth/verify?code=...`; the endpoint exchanges that PKCE code and creates the Motionly session. The Google endpoint starts a separate PKCE flow and accepts each stored attempt only once.
 
 ## Workspaces
 

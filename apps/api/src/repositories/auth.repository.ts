@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import { and, eq, gt, isNull, lt } from 'drizzle-orm';
+import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 
 import type { AuthProvider } from '../../../../packages/auth/src/types.js';
 import { TokenVault } from '../../../../packages/auth/src/token-vault.js';
 import type { Database } from '../../../../packages/database/src/client.js';
-import { authSessions, oauthAttempts, profiles, workspaceMembers, workspaces } from '../../../../packages/database/src/schema.js';
+import { authSessions, oauthAttempts, users, workspaceMembers, workspaces } from '../../../../packages/database/src/schema.js';
 import type { AccountProvisioner, AuthFlowStore, SessionCreator } from '../services/auth.service.js';
 
 function hash(value: string) {
@@ -21,13 +21,13 @@ export class DatabaseAccountProvisioner implements AccountProvisioner {
 
   async provision(identity: Parameters<AccountProvisioner['provision']>[0]) {
     await this.db.transaction(async (transaction) => {
-      await transaction.insert(profiles).values({
+      await transaction.insert(users).values({
         id: identity.id,
         email: identity.email,
         displayName: identity.displayName,
         avatarUrl: identity.avatarUrl,
       }).onConflictDoUpdate({
-        target: profiles.id,
+        target: users.id,
         set: { email: identity.email, displayName: identity.displayName, avatarUrl: identity.avatarUrl, updatedAt: new Date() },
       });
 
@@ -75,12 +75,12 @@ export class DatabaseSessionStore implements SessionCreator {
 
   async resolve(sessionToken: string) {
     const [row] = await this.db.select({
-      userId: profiles.id,
-      email: profiles.email,
-      displayName: profiles.displayName,
-      avatarUrl: profiles.avatarUrl,
+      userId: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
       csrfToken: authSessions.csrfToken,
-    }).from(authSessions).innerJoin(profiles, eq(profiles.id, authSessions.userId)).where(and(
+    }).from(authSessions).innerJoin(users, eq(users.id, authSessions.userId)).where(and(
       eq(authSessions.tokenHash, hash(sessionToken)),
       isNull(authSessions.revokedAt),
       gt(authSessions.expiresAt, new Date()),

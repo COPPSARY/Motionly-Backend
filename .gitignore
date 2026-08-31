@@ -6,4 +6,5 @@ dist/
 coverage/
 .npm-cache/
 *.log
-
+/AGENTS.md
+/PRODUCT.md
