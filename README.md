@@ -379,7 +379,8 @@ NODE_ENV=development
 API_HOST=0.0.0.0
 API_PORT=3000
 API_PUBLIC_URL=http://localhost:3000
-FRONTEND_ORIGINS=http://localhost:5173
+FRONTEND_ORIGINS=http://localhost:4200,http://localhost:5173
+EDITOR_ORIGIN=http://localhost:5173
 LOG_LEVEL=info
 
 DATABASE_URL=postgresql://postgres.PROJECT_REF:YOUR_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require
@@ -392,6 +393,12 @@ QUEUE_PROVIDER=postgres
 RENDER_JOB_TIMEOUT_SECONDS=900
 RENDER_MAX_ATTEMPTS=3
 ```
+
+For production, set `FRONTEND_ORIGINS` to every deployed browser origin that
+uses the API, for example `https://www.motionly.site,https://app.motionly.site,
+https://motionly-tau.vercel.app`. Set `VITE_MOTIONLY_API_URL` to the same
+production API URL when building each frontend; the current frontend fallback
+is `https://api.motionly.site`.
 
 Environment variables must be parsed and validated once at process startup. Invalid or missing production configuration should stop the process with a clear error.
 

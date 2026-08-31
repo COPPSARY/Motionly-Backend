@@ -32,6 +32,7 @@ interface AppOptions {
     workspaces: WorkspaceControllerService;
   };
   frontendOrigins: string[];
+  editorOrigin?: string;
   secureCookies: boolean;
   logger?: Logger;
   nodeEnv?: 'development' | 'test' | 'production';
@@ -57,6 +58,7 @@ export function createApp(options: AppOptions) {
     frontendOrigin,
     options.secureCookies,
     options.nodeEnv === 'development',
+    options.editorOrigin,
   );
   const workspaceController = new WorkspaceController(options.services.workspaces);
 
@@ -85,6 +87,7 @@ export async function startServer() {
   const app = createApp({
     services: { auth, sessions, workspaces },
     frontendOrigins: environment.frontendOrigins,
+    editorOrigin: environment.editorOrigin,
     secureCookies: environment.secureCookies,
     logger,
     nodeEnv: environment.nodeEnv,

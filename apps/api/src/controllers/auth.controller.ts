@@ -24,6 +24,7 @@ export class AuthController {
     private readonly frontendOrigin: string,
     private readonly secureCookies: boolean,
     private readonly includeErrorStack: boolean,
+    private readonly editorOrigin?: string,
   ) {}
 
   signUp = async (request: AuthenticatedRequest, response: Response) => {
@@ -67,7 +68,7 @@ export class AuthController {
       const result = await this.auth.completeGoogleLogin(query.code, query.attempt);
       this.setSessionCookies(response, result.sessionToken, result.csrfToken);
       request.log.info({ ...logContext, userId: result.identity.id }, 'OAuth login completed');
-      response.redirect(302, this.frontendOrigin);
+      response.redirect(302, this.editorOrigin ?? this.frontendOrigin);
     } catch (error) {
       request.log.error({ ...logContext, error: serializeLogError(error, this.includeErrorStack) }, 'OAuth login failed');
       throw error;
@@ -91,7 +92,15 @@ export class AuthController {
   };
 
   private setSessionCookies(response: Response, sessionToken: string, csrfToken: string) {
-    const common = { secure: this.secureCookies, sameSite: 'lax' as const, path: '/' };
+    // The editor may be hosted on a separate production origin (for example
+    // the Vercel deployment), so production sessions must be sent on
+    // credentialed cross-origin API requests. Mutations remain protected by
+    // the session-bound CSRF token.
+    const common = {
+      secure: this.secureCookies,
+      sameSite: this.secureCookies ? ('none' as const) : ('lax' as const),
+      path: '/',
+    };
     const maxAge = 30 * 24 * 60 * 60 * 1000;
     response.cookie(SESSION_COOKIE, sessionToken, { ...common, httpOnly: true, maxAge });
     response.cookie(CSRF_COOKIE, csrfToken, { ...common, httpOnly: false, maxAge });

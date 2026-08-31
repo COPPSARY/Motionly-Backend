@@ -11,6 +11,7 @@ const schema = z.object({
   API_PORT: z.coerce.number().int().positive().max(65_535).default(4000),
   API_PUBLIC_URL: z.url(),
   FRONTEND_ORIGINS: z.string().min(1),
+  EDITOR_ORIGIN: z.url().default('https://app.motionly.site'),
   DATABASE_URL: z.string().startsWith('postgresql://'),
   SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
   SESSION_ENCRYPTION_KEY: z.string().refine(
@@ -36,6 +37,7 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     apiPort: parsed.API_PORT,
     apiPublicUrl: parsed.API_PUBLIC_URL.replace(/\/$/, ''),
     frontendOrigins,
+    editorOrigin: parsed.EDITOR_ORIGIN.replace(/\/$/, ''),
     databaseUrl: parsed.DATABASE_URL,
     supabaseUrl: deriveSupabaseUrl(parsed.DATABASE_URL),
     supabasePublishableKey: parsed.SUPABASE_PUBLISHABLE_KEY,
