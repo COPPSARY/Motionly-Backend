@@ -9,16 +9,18 @@
   },
   "scripts": {
     "dev": "node --env-file=.env --watch --import tsx apps/api/src/server.ts",
-    "dev:auth-ui": "vite --config apps/auth-test-ui/vite.config.ts",
+    "dev:web": "vite --config apps/web/vite.config.ts",
     "build": "npm run build:api",
     "build:api": "tsc -p tsconfig.build.json",
-    "build:auth-ui": "vite build --config apps/auth-test-ui/vite.config.ts",
+    "build:web": "vite build --config apps/web/vite.config.ts",
     "start": "node --env-file=.env dist/apps/api/src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:web": "tsc -p apps/web/tsconfig.json --noEmit",
     "typecheck:auth-ui": "tsc -p apps/auth-test-ui/tsconfig.json --noEmit",
     "db:generate": "drizzle-kit generate",
+    "db:reset": "tsx --env-file=.env packages/database/src/reset.ts",
     "db:migrate": "tsx --env-file=.env packages/database/src/migrate.ts"
   },
   "repository": {

@@ -4,21 +4,21 @@ import { index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid 
 export const workspaceRole = pgEnum('workspace_role', ['owner', 'editor', 'viewer']);
 export const workspaceKind = pgEnum('workspace_kind', ['personal', 'team']);
 
-export const profiles = pgTable('profiles', {
+export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
   email: text('email').notNull(),
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [uniqueIndex('profiles_email_lower_unique').on(sql`lower(${table.email})`)]);
+}, (table) => [uniqueIndex('users_email_lower_unique').on(sql`lower(${table.email})`)]);
 
 export const workspaces = pgTable('workspaces', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   kind: workspaceKind('kind').default('team').notNull(),
-  ownerId: uuid('owner_id').notNull().references(() => profiles.id, { onDelete: 'restrict' }),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -27,7 +27,7 @@ export const workspaces = pgTable('workspaces', {
 
 export const workspaceMembers = pgTable('workspace_members', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: workspaceRole('role').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -38,7 +38,7 @@ export const workspaceMembers = pgTable('workspace_members', {
 
 export const authSessions = pgTable('auth_sessions', {
   tokenHash: text('token_hash').primaryKey(),
-  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   csrfToken: text('csrf_token').notNull(),
   accessTokenEncrypted: text('access_token_encrypted').notNull(),
   refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
@@ -55,4 +55,3 @@ export const oauthAttempts = pgTable('oauth_attempts', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
-

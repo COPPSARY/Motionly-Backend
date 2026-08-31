@@ -1,7 +1,7 @@
 import { and, asc, count, eq } from 'drizzle-orm';
 
 import type { Database } from '../../../../packages/database/src/client.js';
-import { profiles, workspaceMembers, workspaces } from '../../../../packages/database/src/schema.js';
+import { users, workspaceMembers, workspaces } from '../../../../packages/database/src/schema.js';
 import type { WorkspaceRepository, WorkspaceRole } from '../services/workspace.service.js';
 
 function slugPart(value: string) {
@@ -50,13 +50,13 @@ export class DatabaseWorkspaceRepository implements WorkspaceRepository {
   }
 
   async listMembers(workspaceId: string) {
-    return this.db.select({ userId: profiles.id, email: profiles.email, displayName: profiles.displayName, avatarUrl: profiles.avatarUrl, role: workspaceMembers.role })
-      .from(workspaceMembers).innerJoin(profiles, eq(profiles.id, workspaceMembers.userId))
-      .where(eq(workspaceMembers.workspaceId, workspaceId)).orderBy(asc(profiles.displayName));
+    return this.db.select({ userId: users.id, email: users.email, displayName: users.displayName, avatarUrl: users.avatarUrl, role: workspaceMembers.role })
+      .from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
+      .where(eq(workspaceMembers.workspaceId, workspaceId)).orderBy(asc(users.displayName));
   }
 
   async findProfileByEmail(email: string) {
-    const [profile] = await this.db.select({ id: profiles.id }).from(profiles).where(eq(profiles.email, email.toLowerCase())).limit(1);
+    const [profile] = await this.db.select({ id: users.id }).from(users).where(eq(users.email, email.toLowerCase())).limit(1);
     return profile ?? null;
   }
 

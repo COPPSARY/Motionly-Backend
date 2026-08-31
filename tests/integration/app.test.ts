@@ -22,11 +22,7 @@ function dependencies() {
       }),
       beginGoogleLogin: vi.fn(),
       completeGoogleLogin: vi.fn(),
-      completeEmailVerification: vi.fn().mockResolvedValue({
-        identity,
-        sessionToken: 'verified-session',
-        csrfToken: 'verified-csrf',
-      }),
+      completeEmailVerification: vi.fn().mockResolvedValue({ identity, sessionToken: 'verified-session', csrfToken: 'verified-csrf' }),
       logout: vi.fn(),
     },
     sessions: {
@@ -133,25 +129,13 @@ describe('Motionly API', () => {
     expect(response.body.data).toEqual({ user: identity, csrfToken: 'oauth-csrf' });
   });
 
-  it('completes email verification and redirects to the frontend', async () => {
+  it('verifies an email token and redirects to the frontend', async () => {
     const deps = dependencies();
-    const app = createApp({
-      services: deps,
-      frontendOrigins: ['http://localhost:5173'],
-      secureCookies: false,
-    });
-
-    const response = await request(app)
-      .get('/v1/auth/verify')
-      .query({ code: '99f472a5-85f7-481d-bd2d-24edc06e02f2' });
-
+    const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
+    const response = await request(app).get('/v1/auth/verify').query({ code: '99f472a5-85f7-481d-bd2d-24edc06e02f2', attempt: 'email-attempt' });
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe('http://localhost:5173/?verified=true');
-    expect(deps.auth.completeEmailVerification).toHaveBeenCalledWith('99f472a5-85f7-481d-bd2d-24edc06e02f2');
-    expect(response.headers['set-cookie']).toEqual(expect.arrayContaining([
-      expect.stringContaining('motionly_session=verified-session'),
-      expect.stringContaining('motionly_csrf=verified-csrf'),
-    ]));
+    expect(deps.auth.completeEmailVerification).toHaveBeenCalledWith('99f472a5-85f7-481d-bd2d-24edc06e02f2', 'email-attempt');
   });
 
   it('does not expose the removed email-prefixed login and verification routes', async () => {

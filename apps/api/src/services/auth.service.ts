@@ -1,4 +1,4 @@
-import type { AuthIdentity, AuthProvider } from '../../../../packages/auth/src/types.js';
+import type { AuthIdentity, AuthProvider, ProviderSession } from '../../../../packages/auth/src/types.js';
 import { AppError } from '../errors.js';
 import { randomBytes } from 'node:crypto';
 
@@ -36,34 +36,37 @@ export class AuthService {
   ) {}
 
   async signUpWithEmail(email: string, password: string) {
-    if (!this.options) throw new Error('Auth service redirect URLs are not configured');
-    return this.provider.signUpWithPassword(
-      email.trim().toLowerCase(),
-      password,
-      this.options.emailVerificationRedirect,
-    );
+    if (!this.options || !this.flows) throw new Error('Auth service redirect URLs are not configured');
+    const attempt = randomBytes(32).toString('base64url');
+    const separator = this.options.emailVerificationRedirect.includes('?') ? '&' : '?';
+    const redirectTo = `${this.options.emailVerificationRedirect}${separator}attempt=${encodeURIComponent(attempt)}`;
+    const result = await this.provider.signUpWithPassword(email.trim().toLowerCase(), password, redirectTo);
+    await this.flows.create(attempt, result.verifierState);
+    return result;
   }
 
   async loginWithEmail(email: string, password: string) {
     try {
-      const providerSession = await this.provider.signInWithPassword(email.trim().toLowerCase(), password);
-      return this.completeLogin(providerSession);
+      return await this.completeLogin(await this.provider.signInWithPassword(email.trim().toLowerCase(), password));
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError(401, 'INVALID_CREDENTIALS', 'The email or password is incorrect.');
     }
   }
 
-  async completeEmailVerification(code: string) {
+  async completeEmailVerification(code: string, attempt: string) {
+    if (!this.flows) throw new Error('Email verification storage is not configured');
     try {
-      return await this.completeLogin(await this.provider.exchangeEmailVerificationCode(code));
+      const verifierState = await this.flows.consume(attempt);
+      if (!verifierState) throw new AppError(400, 'EMAIL_VERIFICATION_INVALID', 'The verification link is invalid or expired.');
+      return await this.completeLogin(await this.provider.exchangeEmailVerificationCode(code, verifierState));
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError(400, 'EMAIL_VERIFICATION_INVALID', 'The verification link is invalid or expired.');
     }
   }
 
-  async completeLogin(providerSession: Awaited<ReturnType<AuthProvider['signInWithPassword']>>) {
+  async completeLogin(providerSession: ProviderSession) {
     if (!providerSession.identity.emailVerified) {
       throw new AppError(403, 'EMAIL_NOT_VERIFIED', 'Verify your email before signing in.');
     }
@@ -97,4 +100,5 @@ export class AuthService {
   async logout(sessionToken: string) {
     await this.sessions.revoke(sessionToken);
   }
+
 }
