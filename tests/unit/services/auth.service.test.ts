@@ -19,7 +19,7 @@ describe('AuthService authentication workflows', () => {
         identity: null,
         session: null,
       }),
-      verifyEmailToken: vi.fn(),
+      exchangeEmailVerificationCode: vi.fn(),
       getGoogleAuthorizationUrl: vi.fn(),
       exchangeCode: vi.fn(),
       revokeSession: vi.fn(),
@@ -54,7 +54,7 @@ describe('AuthService authentication workflows', () => {
         expiresAt: new Date('2030-01-01T00:00:00.000Z'),
       }),
       signUpWithPassword: vi.fn(),
-      verifyEmailToken: vi.fn(),
+      exchangeEmailVerificationCode: vi.fn(),
       getGoogleAuthorizationUrl: vi.fn(),
       exchangeCode: vi.fn(),
       revokeSession: vi.fn(),
@@ -98,7 +98,7 @@ describe('AuthService authentication workflows', () => {
         expiresAt: new Date('2030-01-01T00:00:00.000Z'),
       }),
       signUpWithPassword: vi.fn(),
-      verifyEmailToken: vi.fn(),
+      exchangeEmailVerificationCode: vi.fn(),
       getGoogleAuthorizationUrl: vi.fn(),
       exchangeCode: vi.fn(),
       revokeSession: vi.fn(),
@@ -117,7 +117,7 @@ describe('AuthService authentication workflows', () => {
     const provider = {
       signInWithPassword: vi.fn().mockRejectedValue(new Error('User does not exist')),
       signUpWithPassword: vi.fn(),
-      verifyEmailToken: vi.fn(),
+      exchangeEmailVerificationCode: vi.fn(),
       getGoogleAuthorizationUrl: vi.fn(),
       exchangeCode: vi.fn(),
       revokeSession: vi.fn(),
@@ -143,7 +143,7 @@ describe('AuthService authentication workflows', () => {
     const provider = {
       signInWithPassword: vi.fn(),
       signUpWithPassword: vi.fn(),
-      verifyEmailToken: vi.fn().mockResolvedValue(providerSession),
+      exchangeEmailVerificationCode: vi.fn().mockResolvedValue(providerSession),
       getGoogleAuthorizationUrl: vi.fn(),
       exchangeCode: vi.fn(),
       revokeSession: vi.fn(),
@@ -155,9 +155,11 @@ describe('AuthService authentication workflows', () => {
     };
     const service = new AuthService(provider, accounts, sessions);
 
-    const result = await service.completeEmailVerification('confirmation-token-hash');
+    const result = await service.completeEmailVerification('99f472a5-85f7-481d-bd2d-24edc06e02f2');
 
-    expect(provider.verifyEmailToken).toHaveBeenCalledWith('confirmation-token-hash');
+    expect(provider.exchangeEmailVerificationCode).toHaveBeenCalledWith(
+      '99f472a5-85f7-481d-bd2d-24edc06e02f2',
+    );
     expect(accounts.provision).toHaveBeenCalledWith(identity);
     expect(result).toEqual({
       identity,

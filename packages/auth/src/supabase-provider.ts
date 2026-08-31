@@ -67,8 +67,8 @@ export class SupabaseAuthProvider implements AuthProvider {
     return providerSession(data.session);
   }
 
-  async verifyEmailToken(tokenHash: string): Promise<ProviderSession> {
-    const { data, error } = await this.client.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+  async exchangeEmailVerificationCode(code: string): Promise<ProviderSession> {
+    const { data, error } = await this.client.auth.exchangeCodeForSession(code);
     if (error || !data.session) throw error ?? new Error('Supabase did not return a session');
     return providerSession(data.session);
   }

@@ -54,9 +54,9 @@ export class AuthService {
     }
   }
 
-  async completeEmailVerification(tokenHash: string) {
+  async completeEmailVerification(code: string) {
     try {
-      return await this.completeLogin(await this.provider.verifyEmailToken(tokenHash));
+      return await this.completeLogin(await this.provider.exchangeEmailVerificationCode(code));
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError(400, 'EMAIL_VERIFICATION_INVALID', 'The verification link is invalid or expired.');

@@ -143,11 +143,11 @@ describe('Motionly API', () => {
 
     const response = await request(app)
       .get('/v1/auth/verify')
-      .query({ token_hash: 'confirmation-token-hash', type: 'email' });
+      .query({ code: '99f472a5-85f7-481d-bd2d-24edc06e02f2' });
 
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe('http://localhost:5173/?verified=true');
-    expect(deps.auth.completeEmailVerification).toHaveBeenCalledWith('confirmation-token-hash');
+    expect(deps.auth.completeEmailVerification).toHaveBeenCalledWith('99f472a5-85f7-481d-bd2d-24edc06e02f2');
     expect(response.headers['set-cookie']).toEqual(expect.arrayContaining([
       expect.stringContaining('motionly_session=verified-session'),
       expect.stringContaining('motionly_csrf=verified-csrf'),
@@ -166,7 +166,7 @@ describe('Motionly API', () => {
       .send({ email: 'designer@example.com', password: 'secret123' });
     const verifyResponse = await request(app)
       .get('/v1/auth/email/verify')
-      .query({ token_hash: 'confirmation-token-hash', type: 'email' });
+      .query({ code: '99f472a5-85f7-481d-bd2d-24edc06e02f2' });
 
     expect(loginResponse.status).toBe(404);
     expect(verifyResponse.status).toBe(404);

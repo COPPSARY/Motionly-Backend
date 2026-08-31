@@ -22,7 +22,7 @@ export interface SignUpResult {
 export interface AuthProvider {
   signUpWithPassword(email: string, password: string, redirectTo: string): Promise<SignUpResult>;
   signInWithPassword(email: string, password: string): Promise<ProviderSession>;
-  verifyEmailToken(tokenHash: string): Promise<ProviderSession>;
+  exchangeEmailVerificationCode(code: string): Promise<ProviderSession>;
   getGoogleAuthorizationUrl(redirectTo: string): Promise<{ url: string; verifierState: string }>;
   exchangeCode(code: string, verifierState: string): Promise<ProviderSession>;
   revokeSession(accessToken: string): Promise<void>;
