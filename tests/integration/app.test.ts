@@ -32,6 +32,10 @@ function dependencies() {
       list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(),
       listMembers: vi.fn(), addMember: vi.fn(), updateMember: vi.fn(), removeMember: vi.fn(),
     },
+    projects: {
+      list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(),
+      getSource: vi.fn(), saveSource: vi.fn(), listVersions: vi.fn(), getVersion: vi.fn(), restoreVersion: vi.fn(),
+    },
   };
 }
 

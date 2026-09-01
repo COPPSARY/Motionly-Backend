@@ -8,7 +8,7 @@
 - A durable queue provider for render jobs.
 - A Supabase Auth project with email authentication and the Google provider enabled.
 
-Phase 2 uses the same Supabase project for Auth and PostgreSQL. Drizzle connects through the project's standard PostgreSQL connection string; it does not use the Supabase Data API.
+The Authentication implementation uses the same Supabase project for Auth and PostgreSQL. Drizzle connects through the project's standard PostgreSQL connection string; it does not use the Supabase Data API.
 
 ## Local development
 

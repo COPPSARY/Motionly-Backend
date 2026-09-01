@@ -13,15 +13,19 @@ import { createDatabase } from '../../../packages/database/src/client.js';
 import { parseEnvironment } from './config/env.js';
 import { createLogger } from './config/logger.js';
 import { AuthController, type AuthControllerService } from './controllers/auth.controller.js';
+import { ProjectController, type ProjectControllerService } from './controllers/project.controller.js';
 import { WorkspaceController, type WorkspaceControllerService } from './controllers/workspace.controller.js';
 import { requireAuthentication, resolveSession } from './middleware/authentication.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
 import { createRequestLogger } from './middleware/request-logger.js';
 import { DatabaseAccountProvisioner, DatabaseAuthFlowStore, DatabaseSessionStore } from './repositories/auth.repository.js';
+import { DatabaseProjectRepository } from './repositories/project.repository.js';
 import { DatabaseWorkspaceRepository } from './repositories/workspace.repository.js';
 import { createAuthRoutes } from './routes/auth.routes.js';
+import { createProjectRoutes, createWorkspaceProjectRoutes } from './routes/project.routes.js';
 import { createWorkspaceRoutes } from './routes/workspace.routes.js';
 import { AuthService } from './services/auth.service.js';
+import { ProjectService } from './services/project.service.js';
 import { WorkspaceService } from './services/workspace.service.js';
 import type { SessionResolver } from './types/http.js';
 
@@ -30,6 +34,7 @@ interface AppOptions {
     auth: AuthControllerService;
     sessions: SessionResolver;
     workspaces: WorkspaceControllerService;
+    projects: ProjectControllerService;
   };
   frontendOrigins: string[];
   secureCookies: boolean;
@@ -46,7 +51,7 @@ export function createApp(options: AppOptions) {
   app.use(helmet());
   app.use(createRequestLogger(options.logger ?? createLogger({ nodeEnv: 'test', logLevel: 'silent' }), options.nodeEnv ?? 'test'));
   app.use(cors({ origin: options.frontendOrigins, credentials: true }));
-  app.use(express.json({ limit: '32kb' }));
+  app.use(express.json({ limit: '20mb' }));
   app.use(cookieParser());
 
   app.get('/health', (_request, response) => response.json({ status: 'ok' }));
@@ -59,10 +64,13 @@ export function createApp(options: AppOptions) {
     options.nodeEnv === 'development',
   );
   const workspaceController = new WorkspaceController(options.services.workspaces);
+  const projectController = new ProjectController(options.services.projects);
 
   app.use('/v1', resolveSession(options.services.sessions));
   app.use('/v1/auth', createAuthRoutes(authController));
+  app.use('/v1/workspaces/:workspaceId/projects', requireAuthentication, createWorkspaceProjectRoutes(projectController));
   app.use('/v1/workspaces', requireAuthentication, createWorkspaceRoutes(workspaceController));
+  app.use('/v1/projects', requireAuthentication, createProjectRoutes(projectController));
   app.use(notFound);
   app.use(errorHandler);
   return app;
@@ -82,8 +90,9 @@ export async function startServer() {
     oauthCallbackUrl: `${environment.apiPublicUrl}/v1/auth/callback`,
   });
   const workspaces = new WorkspaceService(new DatabaseWorkspaceRepository(db));
+  const projects = new ProjectService(new DatabaseProjectRepository(db));
   const app = createApp({
-    services: { auth, sessions, workspaces },
+    services: { auth, sessions, workspaces, projects },
     frontendOrigins: environment.frontendOrigins,
     secureCookies: environment.secureCookies,
     logger,

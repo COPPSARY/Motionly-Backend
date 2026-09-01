@@ -4,7 +4,7 @@ Motionly Backend is an optional, provider-independent service for the Motionly e
 
 ## Source of truth
 
-A project is TypeScript source implementing `CompositionDefinition`. The backend stores the source as text and creates immutable versions whenever it is saved. It must not introduce a JSON animation document, a second project representation, an interpreter, or another rendering model.
+A project consists of four authored source files: `composition.html`, `styles.css`, `timeline.js`, and a thin `index.ts` adapter implementing `CompositionDefinition`. The backend stores those files as an immutable bundle whenever the project is saved. It must not introduce a JSON animation document, a second project representation, an interpreter, or another rendering model.
 
 Compilation output is a disposable derived artifact. It can be regenerated from a pinned source version and its dependencies; it is never editable project source.
 
@@ -34,7 +34,7 @@ Motionly API ----> PostgreSQL
 
 ## Boundaries
 
-- PostgreSQL holds relational metadata and source text, never large binary media.
+- PostgreSQL holds relational metadata and immutable project source files, never large binary media.
 - S3-compatible storage holds private asset and artifact objects.
 - The queue abstracts durable render-job delivery.
 - Authentication, storage, and queue providers are implemented behind adapters.

@@ -54,6 +54,26 @@ POST   /v1/projects/:projectId/versions/:versionId/restore
 
 Source saves include the caller's last-known project revision. When it is stale, the API returns `409 Conflict` so clients can reload or reconcile without silently overwriting another edit.
 
+Creating a project requires its initial source bundle and creates version 1. Saving or restoring source creates a new immutable version and advances the project revision. Deletion is a soft archive and also requires the current revision. Viewers may read projects and versions; workspace owners and editors may mutate them.
+
+```json
+{
+  "name": "Launch Film",
+  "width": 1920,
+  "height": 1080,
+  "fps": 60,
+  "duration": 30,
+  "files": {
+    "composition.html": "<main class=\"scene\">...</main>",
+    "styles.css": ".scene { ... }",
+    "timeline.js": "export function buildTimeline(context) { ... }",
+    "index.ts": "export const launchFilm = defineComposition({ ... })"
+  }
+}
+```
+
+The `files` object is only an HTTP transport envelope for the four canonical authored files. It is not a JSON animation representation. `PATCH`, `PUT`, `DELETE`, and restore requests include `revision`; stale writes return `REVISION_CONFLICT` with `details.currentRevision`.
+
 ## Assets
 
 ```text
