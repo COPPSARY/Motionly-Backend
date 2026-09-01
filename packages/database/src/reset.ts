@@ -10,6 +10,9 @@ const expectedTables = new Set([
   'auth_sessions',
   'oauth_attempts',
   'profiles',
+  'project_version_files',
+  'project_versions',
+  'projects',
   'users',
   'workspace_members',
   'workspaces',
@@ -30,7 +33,7 @@ try {
 
   await pool.query('begin');
   await pool.query('drop schema if exists drizzle cascade');
-  await pool.query('drop table if exists auth_refresh_tokens, auth_sessions, oauth_attempts, workspace_members, workspaces, users, profiles cascade');
+  await pool.query('drop table if exists auth_refresh_tokens, auth_sessions, oauth_attempts, project_version_files, project_versions, projects, workspace_members, workspaces, users, profiles cascade');
   await pool.query('drop type if exists workspace_kind, workspace_role');
   await pool.query('commit');
   console.log('Motionly application tables and migration history were removed.');

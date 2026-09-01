@@ -5,11 +5,13 @@ The backend service for [Motionly](../motionly), a code-first motion graphics ed
 This repository will provide the optional server-side capabilities required for hosted and self-hosted Motionly installations: authentication, workspaces, project persistence, source versioning, asset storage, render jobs, and collaboration infrastructure.
 
 > [!IMPORTANT]
-> TypeScript compositions remain the only project source. The backend must not introduce a JSON animation document, a second project representation, an interpreter, or a separate rendering model. Preview and rendering must continue to use `CompositionDefinition.build()`.
+> The authored `composition.html`, `styles.css`, `timeline.js`, and `index.ts` files remain the only project source. The backend must not introduce a JSON animation document, a second project representation, an interpreter, or a separate rendering model. The TypeScript adapter must continue to provide `CompositionDefinition.build()` to preview and rendering.
 
 ## Project status
 
-Phase 2 is implemented: PostgreSQL/Drizzle persistence, Supabase email and Google authentication, opaque server-side sessions, personal-workspace provisioning, and role-based workspace membership APIs. Project persistence and rendering remain roadmap work.
+V1 Area 1, Authentication, has its core implementation in place. Real PostgreSQL/Supabase integration coverage and broader authentication lifecycle tests remain follow-up validation work.
+
+V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, immutable four-file source versions, optimistic concurrency, soft deletion, version history, restore operations, the applied database migration, and Motionly frontend Open/Save integration.
 
 ## Goals
 
@@ -17,7 +19,7 @@ Phase 2 is implemented: PostgreSQL/Drizzle persistence, Supabase email and Googl
 - Add an optional backend for accounts, teams, saved projects, assets, and rendering.
 - Make the backend straightforward to self-host.
 - Keep infrastructure provider-independent through small adapters.
-- Preserve TypeScript composition source without converting it to another format.
+- Preserve the authored HTML, scoped CSS, GSAP timeline, and thin TypeScript adapter without converting them to another format.
 - Separate interactive API work from resource-intensive rendering.
 - Establish secure multi-tenant access from the first database migration.
 
@@ -41,7 +43,7 @@ Phase 2 is implemented: PostgreSQL/Drizzle persistence, Supabase email and Googl
 | Database | Supabase PostgreSQL | Standard PostgreSQL accessed through Drizzle |
 | ORM and migrations | Drizzle ORM and Drizzle Kit | Generated SQL migrations are committed |
 | Authentication | Adapter-based JWT/OIDC authentication | Supabase Auth can be the first adapter |
-| Object storage | Deferred to Phase 4 | Provider will be selected when asset storage is implemented |
+| Object storage | Deferred to V1 Area 3 | Provider will be selected when asset storage is implemented |
 | Job queue | Queue adapter | PostgreSQL/Supabase Queues initially; Redis/BullMQ when needed |
 | Rendering | Separate Node.js worker in an isolated container | Never runs inside the API process |
 | Local development | Supabase | Supabase provides database and authentication |
@@ -199,13 +201,23 @@ The `(workspace_id, user_id)` pair is unique. Authorization must be checked at t
 | `id` | Version UUID |
 | `project_id` | Project reference |
 | `version_number` | Monotonically increasing project version |
-| `source_text` | Complete TypeScript composition source |
 | `source_hash` | Content hash used for integrity and deduplication |
 | `message` | Optional version description |
 | `created_by` | Author identifier |
 | `created_at` | Creation timestamp |
 
 Versions are immutable. A render job always references a specific version rather than whatever source happens to be current when the worker starts.
+
+### `project_version_files`
+
+| Column | Purpose |
+| --- | --- |
+| `project_version_id` | Immutable project-version reference |
+| `path` | One of `composition.html`, `styles.css`, `timeline.js`, or `index.ts` |
+| `content` | Complete authored file content |
+| `content_hash` | Per-file SHA-256 integrity hash |
+
+The four rows belonging to a version are the canonical project source bundle. The API represents them as a keyed transport object, not as a separate animation document or editable project model.
 
 ### `assets`
 
@@ -395,92 +407,119 @@ RENDER_MAX_ATTEMPTS=3
 
 Environment variables must be parsed and validated once at process startup. Invalid or missing production configuration should stop the process with a clear error.
 
-## Implementation roadmap
+## Motionly Cloud Backend V1 implementation plan
 
-### Phase 1 — Repository foundation
+The seven areas below are the shared V1 delivery plan and should be implemented in this order. Infrastructure work may be introduced earlier when another area depends on it, but Area 7 is not complete until every listed production capability is operational and documented.
 
-- Create npm workspaces for `apps/*` and `packages/*`.
-- Add strict shared TypeScript configuration.
-- Add linting, formatting, unit-test, type-check, and build scripts.
-- Scaffold the Express.js API with `/health` and `/ready` endpoints.
-- Add structured request logging and request IDs.
-- Add environment validation and `.env.example`.
-- Use Supabase for PostgreSQL and authentication.
-- Add continuous integration for type-checking, tests, linting, and builds.
+### 1. Authentication
 
-**Exit condition:** a fresh contributor can clone the repository, start dependencies, run the API, and receive successful health and readiness responses.
+**Scope:** sign up and login, sessions, and user accounts.
 
-### Phase 2 — Database and authentication
+- Support verified email/password signup and login.
+- Support Google login through the authentication-provider adapter.
+- Maintain opaque, revocable server-side sessions.
+- Protect cookie-authenticated mutations against CSRF.
+- Provision application accounts and their personal workspaces.
+- Enforce workspace roles and tenant isolation.
+- Complete real PostgreSQL/Supabase integration and authentication lifecycle tests.
 
-- Define Drizzle schemas for profiles, workspaces, and memberships.
-- Generate and commit the first SQL migration.
-- Add transaction helpers and database health checks.
-- Define the authentication-provider interface.
-- Implement a development authentication adapter.
-- Implement the first production JWT/OIDC or Supabase adapter.
-- Add workspace role authorization and multi-tenant isolation tests.
+**Exit condition:** a user can create and verify an account, log in, restore an existing session, retrieve their account, and log out; authenticated users cannot access another workspace.
 
-**Exit condition:** authenticated users can create workspaces, manage allowed memberships, and cannot read or mutate another workspace.
+**Status:** core implementation is present; integration and lifecycle validation remain.
 
-### Phase 3 — Projects and source versioning
+### 2. Projects
+
+**Scope:** create, save, update, and delete projects; project ownership; and project versions.
 
 - Add project and immutable project-version tables.
-- Implement project CRUD endpoints.
-- Implement source loading and revision-aware saving.
-- Add optimistic concurrency using the project revision.
+- Implement project create, read, update, and delete endpoints.
+- Scope every project operation to an authorized workspace member.
+- Store the four authored source files as the only project representation.
+- Add revision-aware saving and optimistic concurrency checks.
 - Add version history and restore operations.
-- Define retention rules without deleting referenced render versions.
+- Define version retention rules without deleting versions referenced by render jobs.
 - Connect Motionly Open and Save actions to the API.
 
-**Exit condition:** the frontend can create, open, edit, save, reload, and restore TypeScript composition source without introducing a second project representation.
+**Exit condition:** an authorized user can create, open, edit, save, reload, delete, and restore a project without accessing projects owned by another workspace or introducing a second source representation.
 
-### Phase 4 — Asset storage
+### 3. Storage
 
-- Define the storage-provider interface.
-- Implement the S3-compatible adapter.
-- Add signed upload and download endpoints.
-- Verify uploads before creating active asset records.
-- Extract safe metadata for supported media.
-- Add project-to-asset aliases.
-- Connect the Motionly asset panel to stored project assets.
+**Scope:** project source and code, uploaded assets, rendered videos, and thumbnails.
 
-**Exit condition:** authorized users can upload, reference, download, and remove project assets without proxying large file bodies through the API.
+- Keep project source and version metadata in PostgreSQL.
+- Define a provider-independent object-storage interface.
+- Implement the first S3-compatible storage adapter.
+- Add signed upload and download operations for large files.
+- Verify uploads before activating asset records.
+- Validate asset size, filename, MIME type, and extracted metadata.
+- Associate assets with projects without duplicating stored objects.
+- Store rendered videos and thumbnails as private artifacts.
 
-### Phase 5 — Render pipeline
+**Exit condition:** authorized users can persist project source and securely upload, reference, download, and remove project assets and render artifacts without proxying large file bodies through the API.
 
-- Define the queue-provider interface and durable job lifecycle.
-- Add render submission, status, cancellation, and retry endpoints.
-- Implement the isolated renderer process.
-- Pin each job to a project source version and asset set.
-- Start with PNG frame rendering.
-- Add WebM and MP4 encoding after deterministic frame sequencing is verified.
-- Upload outputs to object storage and create artifact records.
-- Add timeouts, retries, progress reporting, and cleanup.
+### 4. AI
 
-**Exit condition:** a submitted job can be processed outside the API request lifecycle and produces a downloadable artifact from a pinned source version.
+**Scope:** AI generation, Motionly skills, project context, code generation and validation, refinement, and conversation history.
 
-### Phase 6 — Production hardening
+- Define a provider-independent AI service interface.
+- Load the approved Motionly skills needed for generation.
+- Build bounded project context from source, metadata, and conversation state.
+- Generate TypeScript composition code without introducing another project format.
+- Validate generated code before it can be saved or rendered.
+- Support refinement and regeneration from prior output and user feedback.
+- Persist conversation history with project and workspace authorization.
+- Add usage limits, timeouts, safe error handling, and secret redaction.
 
-- Add rate limits and request-size limits.
-- Add audit events for sensitive operations.
-- Add database backup and restore documentation.
-- Add metrics, traces, alerts, and render-queue dashboards.
-- Add graceful shutdown and job-draining behavior.
-- Add dependency and container vulnerability scanning.
-- Add end-to-end tests covering frontend-to-render flows.
-- Publish production and self-hosting deployment guides.
+**Exit condition:** an authorized user can generate, validate, refine, and save a Motionly TypeScript composition using project-aware conversation history.
 
-**Exit condition:** the service has documented recovery procedures, operational visibility, bounded resource use, and repeatable deployments.
+### 5. Rendering
 
-### Phase 7 — Collaboration
+**Scope:** secure sandboxing, HTML/SVG and GSAP execution, a headless browser, FFmpeg, video rendering, and thumbnail generation.
 
-- Add presence separately from durable project state.
-- Choose and document a collaborative text protocol.
-- Reconcile collaborative changes into TypeScript source versions.
-- Preserve normal revision and restore behavior.
-- Add project-level sharing controls and audit history.
+- Run rendering outside the API process in an isolated, disposable sandbox.
+- Compile and execute the pinned TypeScript composition with the Motionly runtime.
+- Render HTML/SVG and GSAP timelines deterministically in a headless browser.
+- Restrict CPU, memory, processes, filesystem access, network access, and execution time.
+- Capture deterministic frames before adding encoded output formats.
+- Encode supported video formats with FFmpeg.
+- Generate representative thumbnails.
+- Upload outputs through the storage interface.
 
-**Exit condition:** multiple editors can safely collaborate without bypassing TypeScript as the only persisted project source.
+**Exit condition:** the isolated renderer can turn a pinned project version and asset set into a reproducible video and thumbnail without exposing host credentials or internal services.
+
+### 6. Render Jobs
+
+**Scope:** queue, workers, progress, status, retry, cancellation, and error handling.
+
+- Define the queue-provider interface and durable render-job lifecycle.
+- Add render submission and status endpoints.
+- Process jobs with separately deployed render workers.
+- Record progress and artifact creation durably.
+- Support cancellation and bounded automatic retries.
+- Distinguish retryable failures from permanent failures.
+- Handle duplicate delivery, stale jobs, worker crashes, and cleanup.
+- Pin every job to an immutable project version and asset set.
+
+**Exit condition:** an authorized user can submit, monitor, cancel, and retry a render job, and a worker can reliably produce downloadable artifacts or a clear terminal error.
+
+### 7. Infrastructure
+
+**Scope:** database, object storage, job queue, render workers, CDN, logging and monitoring, and secrets management.
+
+- Maintain PostgreSQL schemas, migrations, health checks, backups, and restore procedures.
+- Provision private object storage and lifecycle policies.
+- Operate a durable job queue and isolated render-worker fleet.
+- Deliver downloadable artifacts through a CDN or equivalent edge layer.
+- Add structured logs, metrics, traces, dashboards, and alerts.
+- Centralize secrets management and rotation procedures.
+- Add graceful API shutdown and worker job draining.
+- Add dependency, container, and deployment security checks.
+- Maintain local, hosted, and self-hosted deployment documentation.
+- Add end-to-end tests covering authentication through final artifact delivery.
+
+**Exit condition:** V1 has repeatable deployments, documented recovery procedures, protected secrets, operational visibility, scalable render workers, and verified end-to-end behavior.
+
+Realtime collaboration and presence are intentionally deferred until after V1 project saving and version conflict handling are reliable.
 
 ## Testing strategy
 
@@ -489,7 +528,7 @@ The repository should use multiple levels of verification:
 - Unit tests for domain rules, validation, adapters, and authorization decisions.
 - Database integration tests against real PostgreSQL migrations.
 - API integration tests using the Express application with Supertest, without opening a public port.
-- Storage contract tests shared by the selected Phase 4 adapters.
+- Storage contract tests shared by the selected storage adapters.
 - Queue contract tests covering retries, duplicate delivery, cancellation, and stale jobs.
 - Renderer fixtures for deterministic frames and expected failures.
 - Security tests proving cross-workspace access is denied.
@@ -537,25 +576,18 @@ Configured OIDC provider
 Durable queue
 ```
 
-The backend does not require Vercel, but Phase 2 requires Supabase for PostgreSQL and authentication.
+The backend does not require Vercel. The current Authentication implementation uses Supabase for PostgreSQL and authentication.
 
-## Initial delivery checklist
+## V1 delivery tracker
 
-The first implementation pull request should contain only the foundation needed for Phase 1 and the database start of Phase 2:
-
-- [ ] Workspace-aware npm package structure
-- [ ] API and renderer application placeholders
-- [ ] Shared TypeScript and lint configuration
-- [ ] Environment schema and `.env.example`
-- [ ] Express.js health and readiness endpoints
-- [x] Supabase PostgreSQL connection through `DATABASE_URL`
-- [ ] Drizzle configuration and initial schema
-- [ ] Generated SQL migration
-- [ ] Unit and database integration test setup
-- [ ] CI workflow
-- [ ] Contributor startup documentation
-
-Project CRUD, uploads, and rendering should follow in focused pull requests after this foundation is verified.
+- [x] Repository and API foundation
+- [ ] Authentication — core implementation present; integration and lifecycle validation remain
+- [x] Projects — backend, database, and frontend Open/Save/version integration complete
+- [ ] Storage
+- [ ] AI
+- [ ] Rendering
+- [ ] Render Jobs
+- [ ] Infrastructure — partially present and completed incrementally across V1
 
 ## Relationship to the frontend repository
 

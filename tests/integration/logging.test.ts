@@ -16,7 +16,7 @@ describe('HTTP logging', () => {
     } as DestinationStream;
     const logger = pino({ level: 'info' }, sink);
     const app = createApp({
-      services: { auth: {} as never, sessions: { resolve: vi.fn() }, workspaces: {} as never },
+      services: { auth: {} as never, sessions: { resolve: vi.fn() }, workspaces: {} as never, projects: {} as never },
       frontendOrigins: ['http://localhost:5173'],
       secureCookies: false,
       logger,
@@ -53,6 +53,7 @@ describe('HTTP logging', () => {
         auth: { beginGoogleLogin: vi.fn().mockResolvedValue({ url: 'https://accounts.google.com/private-oauth-url' }) } as never,
         sessions: { resolve: vi.fn() },
         workspaces: {} as never,
+        projects: {} as never,
       },
       frontendOrigins: ['http://localhost:5173'],
       secureCookies: false,
@@ -79,6 +80,7 @@ describe('HTTP logging', () => {
         auth: { loginWithEmail: vi.fn().mockRejectedValue(new AppError(401, 'INVALID_CREDENTIALS', 'Invalid credentials')) } as never,
         sessions: { resolve: vi.fn() },
         workspaces: {} as never,
+        projects: {} as never,
       },
       frontendOrigins: ['http://localhost:5173'],
       secureCookies: false,
