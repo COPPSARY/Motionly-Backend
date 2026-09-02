@@ -37,6 +37,7 @@ const changedFilesTool: ModelToolDefinition = {
 export interface GenerationCoordinatorOptions {
   modelTimeoutMs: number;
   maxOutputTokens?: number;
+  maxRepairAttempts?: number;
 }
 
 export class GenerationCoordinator {
@@ -75,21 +76,36 @@ export class GenerationCoordinator {
     });
 
     const presetReference = context.job.intent === 'CREATE' ? await loadPromoReference() : '';
-    const response = await this.provider.generate({
-      model: context.job.model,
-      systemInstructions: buildSystemInstructions(routedSkills, presetReference),
-      prompt: buildPrompt(context),
-      tools: [changedFilesTool],
-      limits: {
-        maxOutputTokens: this.options.maxOutputTokens ?? 8_000,
-        timeoutMs: this.options.modelTimeoutMs,
-      },
-    }, signal);
+    const maxRepairAttempts = this.options.maxRepairAttempts ?? 1;
+    let files: ProjectSourceFiles | undefined;
+    let repairFeedback = '';
+    for (let attempt = 0; attempt <= maxRepairAttempts; attempt += 1) {
+      const response = await this.provider.generate({
+        model: context.job.model,
+        systemInstructions: buildSystemInstructions(routedSkills, presetReference),
+        prompt: buildPrompt(context, repairFeedback),
+        tools: [changedFilesTool],
+        limits: {
+          maxOutputTokens: this.options.maxOutputTokens ?? 8_000,
+          timeoutMs: this.options.modelTimeoutMs,
+        },
+      }, signal);
 
-    const changes = extractChanges(response);
-    const files = applyChanges(context.files, changes);
-    assertChanged(context.files, files);
-    assertCreateQuality(context, files);
+      try {
+        const changes = extractChanges(response);
+        const candidate = applyChanges(context.files, changes);
+        assertChanged(context.files, candidate);
+        assertCreateQuality(context, candidate);
+        files = candidate;
+        break;
+      } catch (error) {
+        if (attempt >= maxRepairAttempts || !isRepairableGenerationError(error)) throw error;
+        const code = error && typeof error === 'object' && 'code' in error ? ` [${String(error.code)}]` : '';
+        const message = error instanceof Error ? error.message : 'The generated source failed validation.';
+        repairFeedback = `The previous output was rejected during validation${code}. Fix this exact problem and return the complete corrected changed files: ${message}`;
+      }
+    }
+    if (!files) throw generationError('MODEL_OUTPUT_INVALID', 'The AI did not produce a valid source revision.');
 
     await this.abortIfCancelled(generationId);
     await this.store.transition({
@@ -154,13 +170,21 @@ async function loadPromoReference(): Promise<string> {
   ].join('\n\n');
 }
 
-function buildPrompt(context: GenerationJobContext): string {
+function buildPrompt(context: GenerationJobContext, repairFeedback = ''): string {
   return [
     `User request:\n${context.prompt}`,
+    ...(repairFeedback ? ['', repairFeedback] : []),
     '',
     'Current files:',
     ...PROJECT_SOURCE_PATHS.map((path) => `\n--- ${path} ---\n${context.files[path]}`),
   ].join('\n');
+}
+
+function isRepairableGenerationError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'code' in error) {
+    return ['SOURCE_QUALITY_INVALID', 'MODEL_DID_NOT_RETURN_FILES', 'MODEL_OUTPUT_INVALID'].includes(String(error.code));
+  }
+  return error instanceof Error;
 }
 
 function extractChanges(response: ModelResponse): Partial<ProjectSourceFiles> {

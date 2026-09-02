@@ -75,7 +75,7 @@ describe('GenerationCoordinator', () => {
     const provider = new FakeModelProvider(response([{ path: 'styles.css', content: files['styles.css'] }]));
     const createContext = { ...context(), job: { ...context().job, intent: 'CREATE' as const } };
     const { store, transitions } = fakeStore(createContext);
-    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
+    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000, maxRepairAttempts: 0 });
 
     await coordinator.run(generationId, new AbortController().signal);
 
@@ -96,7 +96,7 @@ describe('GenerationCoordinator', () => {
   it('fails if the model returns no changed source', async () => {
     const provider = new FakeModelProvider(response([{ path: 'styles.css', content: STARTER_SOURCE_FILES['styles.css'] }]));
     const { store } = fakeStore();
-    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
+    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000, maxRepairAttempts: 0 });
 
     await expect(coordinator.run(generationId, new AbortController().signal)).rejects.toMatchObject({ code: 'NO_SOURCE_CHANGES' });
     expect(provider.inputs).toHaveLength(1);
@@ -107,7 +107,7 @@ describe('GenerationCoordinator', () => {
     const jobContext = { ...context(), job: { ...context().job, intent: 'CREATE' as const } };
     const provider = new FakeModelProvider(response([{ path: 'styles.css', content: '' }]));
     const { store } = fakeStore(jobContext);
-    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
+    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000, maxRepairAttempts: 0 });
 
     await expect(coordinator.run(generationId, new AbortController().signal)).rejects.toMatchObject({ code: 'SOURCE_QUALITY_INVALID' });
     expect(store.saveRevision).not.toHaveBeenCalled();
@@ -125,11 +125,31 @@ describe('GenerationCoordinator', () => {
   it('returns the actual compile error without retrying', async () => {
     const provider = new FakeModelProvider(response([{ path: 'index.ts', content: 'export default {' }]));
     const { store } = fakeStore();
-    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
+    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000, maxRepairAttempts: 0 });
 
     await expect(coordinator.run(generationId, new AbortController().signal)).rejects.toThrow('Expected identifier');
     expect(provider.inputs).toHaveLength(1);
     expect(store.saveRevision).not.toHaveBeenCalled();
+  });
+
+  it('asks the model to repair a rejected create result', async () => {
+    const jobContext = { ...context(), job: { ...context().job, intent: 'CREATE' as const } };
+    const validFiles = { ...STARTER_SOURCE_FILES, 'styles.css': `${STARTER_SOURCE_FILES['styles.css']}\n.repaired { color: yellow; }\n` };
+    let calls = 0;
+    const provider = new FakeModelProvider(() => {
+      calls += 1;
+      return calls === 1
+        ? response([{ path: 'styles.css', content: '' }])
+        : response([{ path: 'styles.css', content: validFiles['styles.css'] }]);
+    });
+    const { store } = fakeStore(jobContext);
+    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
+
+    await coordinator.run(generationId, new AbortController().signal);
+
+    expect(provider.inputs).toHaveLength(2);
+    expect(provider.inputs[1]!.prompt).toContain('SOURCE_QUALITY_INVALID');
+    expect(store.saveRevision).toHaveBeenCalledWith(generationId, validFiles);
   });
 
   it('honors cancellation before calling the model', async () => {
