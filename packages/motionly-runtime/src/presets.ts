@@ -15,6 +15,12 @@ export interface StaggerOptions extends SlideOptions {
   stagger?: number;
 }
 
+export interface WaveOptions extends MotionOptions {
+  totalDuration?: number;
+  yOffset?: number;
+  scaleXOffset?: number;
+}
+
 type Target = gsap.TweenTarget;
 
 export function reveal(timeline: gsap.core.Timeline, target: Target, options: MotionOptions = {}) {
@@ -44,6 +50,17 @@ export function scalePop(timeline: gsap.core.Timeline, target: Target, options: 
 export function blurReveal(timeline: gsap.core.Timeline, target: Target, options: MotionOptions = {}) {
   return timeline.fromTo(target, { filter: 'blur(18px)', autoAlpha: 0, y: 24 }, {
     filter: 'blur(0px)', autoAlpha: 1, y: 0, duration: options.duration ?? 0.72, ease: options.ease ?? 'power3.out',
+  }, options.at);
+}
+
+export function gradientSweep(
+  timeline: gsap.core.Timeline,
+  target: Target,
+  options: MotionOptions & { fromPosition?: string; toPosition?: string } = {},
+) {
+  return timeline.fromTo(target, { backgroundPosition: options.fromPosition ?? '200% 0' }, {
+    backgroundPosition: options.toPosition ?? '0% 0', duration: options.duration ?? 1.4,
+    ease: options.ease ?? 'power2.inOut',
   }, options.at);
 }
 
@@ -144,6 +161,43 @@ export function splitText(element: HTMLElement, unit: 'words' | 'chars'): HTMLEl
   });
 }
 
+export function continuousTextGradient(
+  element: HTMLElement,
+  gradient = 'linear-gradient(96deg, #111318 0%, #7657ff 42%, #c753ff 62%, #111318 100%)',
+) {
+  const words = splitText(element, 'words').filter((word) => Boolean(word.textContent?.trim()));
+  const elementRect = element.getBoundingClientRect();
+  const gradientWidth = Math.max(1, element.scrollWidth);
+  const layoutRatio = gradientWidth / Math.max(1, elementRect.width);
+  words.forEach((word) => {
+    const offset = (elementRect.left - word.getBoundingClientRect().left) * layoutRatio;
+    word.style.backgroundImage = gradient;
+    word.style.backgroundRepeat = 'no-repeat';
+    word.style.backgroundSize = `${gradientWidth}px 100%`;
+    word.style.backgroundPosition = `${offset}px 0`;
+    word.style.backgroundClip = 'text';
+    word.style.webkitBackgroundClip = 'text';
+    word.style.webkitTextFillColor = 'transparent';
+  });
+  return words;
+}
+
+export function ambientWaves(timeline: gsap.core.Timeline, waves: Target[], options: WaveOptions = {}) {
+  const totalDuration = options.totalDuration ?? 24;
+  const at = options.at ?? 0;
+  waves.forEach((wave, index) => {
+    timeline.fromTo(wave, {
+      y: (options.yOffset ?? -20) + index * 14, x: index % 2 === 0 ? -40 : 40,
+      scaleX: options.scaleXOffset ?? 1.2, scaleY: 1.05, opacity: 0.32,
+    }, {
+      y: (options.yOffset ?? -20) - index * 14, x: index % 2 === 0 ? 40 : -40,
+      scaleX: (options.scaleXOffset ?? 1.2) * 1.08, scaleY: 1.12, opacity: 0.46,
+      duration: totalDuration, ease: 'sine.inOut',
+    }, at);
+  });
+  return timeline;
+}
+
 export function textReveal(
   timeline: gsap.core.Timeline,
   element: HTMLElement,
@@ -155,4 +209,32 @@ export function textReveal(
     stagger: options.stagger ?? 0.045, ease: options.ease ?? 'power4.out',
   }, options.at);
   return pieces;
+}
+
+export function wordSlideRotate(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement,
+  options: StaggerOptions & { rotation?: number } = {},
+) {
+  const words = splitText(element, 'words');
+  timeline.fromTo(words, {
+    y: options.distance ?? 42, rotation: options.rotation ?? 4, autoAlpha: 0,
+  }, {
+    y: 0, rotation: 0, autoAlpha: 1, duration: options.duration ?? 0.58,
+    stagger: options.stagger ?? 0.045, ease: options.ease ?? 'power3.out',
+  }, options.at);
+  return words;
+}
+
+export function charSpringBounce(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement,
+  options: StaggerOptions = {},
+) {
+  const chars = splitText(element, 'chars');
+  timeline.fromTo(chars, { y: options.distance ?? 30, scale: 0.82, autoAlpha: 0 }, {
+    y: 0, scale: 1, autoAlpha: 1, duration: options.duration ?? 0.48,
+    stagger: options.stagger ?? 0.025, ease: options.ease ?? 'back.out(1.7)',
+  }, options.at);
+  return chars;
 }
