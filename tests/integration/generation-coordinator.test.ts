@@ -100,6 +100,16 @@ describe('GenerationCoordinator', () => {
     expect(store.saveRevision).not.toHaveBeenCalled();
   });
 
+  it('rejects a create result that removes the visual system', async () => {
+    const jobContext = { ...context(), job: { ...context().job, intent: 'CREATE' as const } };
+    const provider = new FakeModelProvider(response([{ path: 'styles.css', content: '' }]));
+    const { store } = fakeStore(jobContext);
+    const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
+
+    await expect(coordinator.run(generationId, new AbortController().signal)).rejects.toMatchObject({ code: 'SOURCE_QUALITY_INVALID' });
+    expect(store.saveRevision).not.toHaveBeenCalled();
+  });
+
   it('fails if the model edits outside the allowed source files', async () => {
     const provider = new FakeModelProvider(response([{ path: 'package.json', content: '{}' }]));
     const { store } = fakeStore();

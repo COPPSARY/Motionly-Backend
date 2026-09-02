@@ -84,6 +84,7 @@ export class GenerationCoordinator {
     const changes = extractChanges(response);
     const files = applyChanges(context.files, changes);
     assertChanged(context.files, files);
+    assertCreateQuality(context, files);
 
     await this.abortIfCancelled(generationId);
     await this.store.transition({
@@ -125,8 +126,8 @@ function buildSystemInstructions(skills: ReturnType<typeof routeSkills>): string
     'You are editing a Motionly code-first composition.',
     'Make exactly one tool call to return_changed_files. Return only changed files, not the full project.',
     'Only these files may be edited: composition.html, styles.css, timeline.js, index.ts.',
-    'Do not add generated code that uses network access, Node/system APIs, external scripts, or remote URLs.',
     'Preserve unrelated source exactly.',
+    'For CREATE requests, preserve and extend the visual system: return meaningful semantic HTML, substantial CSS styling, intentional typography and placement, and real GSAP timeline choreography. Never replace a composition with plain text or leave styles.css empty.',
     '',
     skills.map((skill) => `# Skill: ${skill.id}\n${skill.content}`).join('\n\n'),
   ].join('\n');
@@ -181,6 +182,19 @@ function applyChanges(current: ProjectSourceFiles, changes: Partial<ProjectSourc
 function assertChanged(current: ProjectSourceFiles, next: ProjectSourceFiles): void {
   if (hashSourceFiles(current) === hashSourceFiles(next)) {
     throw generationError('NO_SOURCE_CHANGES', 'The AI did not change any source file.');
+  }
+}
+
+function assertCreateQuality(context: GenerationJobContext, files: ProjectSourceFiles): void {
+  if (context.job.intent !== 'CREATE') return;
+  if (files['styles.css'].trim().length < 200) {
+    throw generationError('SOURCE_QUALITY_INVALID', 'New compositions must include substantial CSS styling.');
+  }
+  if (!/<(?:h1|h2|section|article|svg)\b/i.test(files['composition.html'])) {
+    throw generationError('SOURCE_QUALITY_INVALID', 'New compositions must include structured visual HTML.');
+  }
+  if (!/\.fromTo\s*\(|\.to\s*\(|\.from\s*\(|\.set\s*\(/.test(files['timeline.js'])) {
+    throw generationError('SOURCE_QUALITY_INVALID', 'New compositions must include authored GSAP timeline motion.');
   }
 }
 

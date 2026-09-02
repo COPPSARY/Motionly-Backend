@@ -41,3 +41,7 @@ Build a directed product film, not decorated slides. Every visual change should 
 - Use `back.out(...)` for tactile text and controls and `power3.inOut` or `power4.inOut` for camera and geometry.
 - Set every hidden, transformed, and layered initial state at time zero.
 - Keep scene and track metadata truthful to the authored timeline and preserve preview/export parity.
+
+## Reference preset
+
+The vendored `packages/motionly-runtime/reference/motionly-promo` files are a pattern library, not source to copy literally. Study their persistent morph carrier, semantic HTML layers, CSS variable system, editorial typography, explicit zero-time state, overlapping handoffs, readable holds, and truthful scene metadata. Adapt those patterns to the user's subject, copy, assets, and duration; do not copy its brand, exact colors, timestamps, or frontend-only imports.

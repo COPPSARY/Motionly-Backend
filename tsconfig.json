@@ -14,5 +14,5 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules", "packages/motionly-runtime/reference"]
 }
