@@ -10,6 +10,7 @@ const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const isCompiled = import.meta.url.endsWith('.js');
 const ext = isCompiled ? '.js' : '.ts';
 const runtimeEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/index${ext}`);
+const runtimeTypesEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/types${ext}`);
 const presetsEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/presets${ext}`);
 const runtimeSourceDirectory = path.dirname(runtimeEntry);
 const gsapEntry = fileURLToPath(import.meta.resolve('gsap'));
@@ -21,6 +22,14 @@ export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{
       context.onResolve({ filter: /^motionly:entry$/ }, () => ({ path: 'entry.ts', namespace }));
       context.onResolve({ filter: /^@motionly\/runtime$/ }, () => ({ path: runtimeEntry }));
       context.onResolve({ filter: /^@motionly\/presets$/ }, () => ({ path: presetsEntry }));
+      context.onResolve({ filter: /^\.\.\/\.\.\/\.\.\/composition\/(presets|types)$/ }, (args) => ({
+        path: args.path.endsWith('/types') ? runtimeTypesEntry : presetsEntry,
+      }));
+      context.onResolve({ filter: /^\.\/timing$/ }, () => ({ path: 'timing.ts', namespace }));
+      context.onResolve({ filter: /^\.\/(logo\.svg|ui-screenshot\.png)\?url$/ }, (args) => ({
+        path: args.path,
+        namespace,
+      }));
       context.onResolve({ filter: /^gsap$/ }, () => ({ path: gsapEntry }));
       context.onResolve({ filter: /^\.\// }, (args) => {
         if (!args.importer.startsWith(runtimeSourceDirectory) || !args.path.endsWith('.js')) return null;
@@ -39,6 +48,12 @@ export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{
       context.onLoad({ filter: /.*/, namespace }, (args) => {
         if (args.path === 'entry.ts') {
           return { contents: "export { default } from './index.ts';", loader: 'ts' };
+        }
+        if (args.path === 'timing.ts') {
+          return { contents: 'export const MOTIONLY_PROMO_DURATION = 39;\nexport const MOTIONLY_PROMO_RETIME_FACTOR = 1;\nexport const MOTIONLY_PROMO_TIME_SCALE = 1;', loader: 'ts' };
+        }
+        if (args.path === './logo.svg?url' || args.path === './ui-screenshot.png?url') {
+          return { contents: 'export default "data:,";', loader: 'js' };
         }
         const raw = args.path.endsWith('?raw');
         const file = (raw ? args.path.slice(0, -4) : args.path) as keyof ProjectSourceFiles;
