@@ -4,7 +4,6 @@ import type {
   GenerationIntent,
   GenerationStatus,
   ModelProviderName,
-  RetryGenerationRequest,
 } from '../../../../packages/contracts/src/generations.js';
 import { MAX_GENERATION_ASSET_BYTES } from '../../../../packages/contracts/src/generations.js';
 import {
@@ -31,8 +30,6 @@ export interface GenerationRecord {
   outputSourceHash: string | null;
   provider: ModelProviderName;
   model: string;
-  attemptCount: number;
-  maxAttempts: number;
   errorCode: string | null;
   errorMessage: string | null;
   errorDetails: Record<string, unknown> | null;
@@ -45,7 +42,6 @@ export interface GenerationRecord {
 export interface GenerationDefaults {
   provider: ModelProviderName;
   model: string;
-  maxAttempts: number;
   runtimeVersion?: string;
   skillBundleVersion?: string;
   maxActivePerUser?: number;
@@ -77,20 +73,6 @@ export interface GenerationRepository {
   list(projectId: string, page: number, pageSize: number): Promise<{ data: GenerationRecord[]; totalItems: number }>;
   getForUser(generationId: string, userId: string): Promise<GenerationRecord | null>;
   requestCancellation(generationId: string): Promise<GenerationRecord | null>;
-  createRetryGeneration(input: {
-    userId: string;
-    originalGenerationId: string;
-    projectId: string;
-    workspaceId: string;
-    threadId: string;
-    prompt: string;
-    assetIds: string[];
-    baseSourceHash: string;
-    baseRevision: number;
-    idempotencyKey: string;
-    defaults: Required<GenerationDefaults>;
-  }): Promise<GenerationRecord>;
-  getLatestUserMessage(generationId: string): Promise<{ content: string; assetIds: string[] } | null>;
   listEvents(generationId: string, afterSequence: number): Promise<Array<{
     generationId: string;
     sequence: number;
@@ -102,7 +84,6 @@ export interface GenerationRepository {
     data: Record<string, unknown> | null;
     createdAt: Date;
   }>>;
-  applyCandidate(generationId: string, userId: string, revision: number): Promise<{ sourceHash: string; revision: number } | null>;
   countActiveForUser(userId: string): Promise<number>;
   summarizeReadyAssets(workspaceId: string, assetIds: string[]): Promise<{ count: number; totalBytes: number }>;
 }
@@ -199,7 +180,7 @@ export class GenerationService {
     const record = await this.repository.getForUser(generationId, userId);
     if (!record) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
     if (record.status === 'CANCELLED' || record.status === 'CANCELLING') return toGenerationResource(record);
-    if (['COMPLETED', 'AWAITING_APPLY', 'FAILED'].includes(record.status)) {
+    if (['COMPLETED', 'FAILED'].includes(record.status)) {
       throw new AppError(409, 'GENERATION_ALREADY_TERMINAL', 'The generation can no longer be cancelled.');
     }
     const updated = await this.repository.requestCancellation(generationId);
@@ -207,49 +188,11 @@ export class GenerationService {
     return toGenerationResource(updated);
   }
 
-  async retry(userId: string, generationId: string, request: RetryGenerationRequest, idempotencyKey: string) {
-    const duplicate = await this.repository.findByIdempotency(userId, idempotencyKey);
-    if (duplicate) return toGenerationResource(duplicate);
-    await this.requireCapacity(userId);
-    const original = await this.repository.getForUser(generationId, userId);
-    if (!original) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
-    if (!['FAILED', 'CANCELLED', 'AWAITING_APPLY'].includes(original.status)) {
-      throw new AppError(409, 'GENERATION_NOT_RETRYABLE', 'Only failed, cancelled, or conflicting generations can be retried.');
-    }
-    const access = await this.repository.getProjectAccess(original.projectId, userId);
-    if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
-    this.requireWriteAccess(access.role);
-    const baseSourceHash = request.baseSourceHash ?? access.project.sourceHash;
-    const baseRevision = request.baseRevision ?? access.project.revision;
-    if (baseSourceHash !== access.project.sourceHash || baseRevision !== access.project.revision) {
-      throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.', {
-        currentRevision: access.project.revision, currentSourceHash: access.project.sourceHash,
-      });
-    }
-    const message = await this.repository.getLatestUserMessage(generationId);
-    if (!message) throw new AppError(409, 'GENERATION_PROMPT_MISSING', 'The generation prompt could not be recovered.');
-    await this.requireAssets(original.workspaceId, message.assetIds);
-    const retry = await this.repository.createRetryGeneration({
-      userId,
-      originalGenerationId: generationId,
-      projectId: original.projectId,
-      workspaceId: original.workspaceId,
-      threadId: original.threadId,
-      prompt: message.content,
-      assetIds: message.assetIds,
-      baseSourceHash,
-      baseRevision,
-      idempotencyKey,
-      defaults: this.defaults,
-    });
-    return toGenerationResource(retry);
-  }
-
   async events(userId: string, generationId: string, afterSequence: number) {
     const record = await this.repository.getForUser(generationId, userId);
     if (!record) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
     const events = await this.repository.listEvents(generationId, afterSequence);
-    const terminal = ['COMPLETED', 'AWAITING_APPLY', 'CANCELLED', 'FAILED'].includes(record.status);
+    const terminal = ['COMPLETED', 'CANCELLED', 'FAILED'].includes(record.status);
     return {
       events: events.map((event) => ({
         ...event,
@@ -259,19 +202,6 @@ export class GenerationService {
       // advance the cursor and drain another page before closing a terminal job.
       isTerminal: terminal && events.length < 500,
     };
-  }
-
-  async apply(userId: string, generationId: string, revision: number) {
-    const record = await this.repository.getForUser(generationId, userId);
-    if (!record) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
-    if (record.status === 'COMPLETED' && record.outputSourceHash) return { outputSourceHash: record.outputSourceHash };
-    if (record.status !== 'AWAITING_APPLY') throw new AppError(409, 'GENERATION_NOT_APPLICABLE', 'This generation has no conflicting candidate to apply.');
-    const access = await this.repository.getProjectAccess(record.projectId, userId);
-    if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
-    this.requireWriteAccess(access.role);
-    const applied = await this.repository.applyCandidate(generationId, userId, revision);
-    if (!applied) throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.', { currentRevision: access.project.revision });
-    return { outputSourceHash: applied.sourceHash, projectRevision: applied.revision };
   }
 
   private requireWriteAccess(role: WorkspaceRole) {
@@ -316,8 +246,6 @@ export function toGenerationResource(record: GenerationRecord) {
     outputSourceHash: record.outputSourceHash,
     provider: record.provider,
     model: record.model,
-    attempt: record.attemptCount,
-    maxAttempts: record.maxAttempts,
     createdAt: record.createdAt.toISOString(),
     startedAt: record.startedAt?.toISOString() ?? null,
     finishedAt: record.finishedAt?.toISOString() ?? null,

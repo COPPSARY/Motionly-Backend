@@ -40,7 +40,5 @@ export function createGenerationRoutes(controller: GenerationController) {
   router.get('/:generationId', asyncHandler(controller.get));
   router.get('/:generationId/events', asyncHandler(controller.events));
   router.post('/:generationId/cancel', generationMutationLimiter, requireCsrf, asyncHandler(controller.cancel));
-  router.post('/:generationId/retry', generationMutationLimiter, requireCsrf, asyncHandler(controller.retry));
-  router.post('/:generationId/apply', generationMutationLimiter, requireCsrf, asyncHandler(controller.apply));
   return router;
 }

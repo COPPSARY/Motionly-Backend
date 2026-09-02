@@ -28,8 +28,6 @@ function record(overrides: Partial<GenerationRecord> = {}): GenerationRecord {
     outputSourceHash: null,
     provider: 'gemini',
     model: 'gemini-test',
-    attemptCount: 0,
-    maxAttempts: 3,
     errorCode: null,
     errorMessage: null,
     errorDetails: null,
@@ -54,10 +52,7 @@ function repository() {
     list: vi.fn().mockResolvedValue({ data: [record()], totalItems: 1 }),
     getForUser: vi.fn().mockResolvedValue(record()),
     requestCancellation: vi.fn().mockResolvedValue(record({ status: 'CANCELLING' })),
-    createRetryGeneration: vi.fn().mockResolvedValue(record()),
-    getLatestUserMessage: vi.fn().mockResolvedValue({ content: 'Change the title', assetIds: [] }),
     listEvents: vi.fn().mockResolvedValue([]),
-    applyCandidate: vi.fn().mockResolvedValue({ sourceHash: ids.sourceHash, revision: 3 }),
     countActiveForUser: vi.fn().mockResolvedValue(0),
     summarizeReadyAssets: vi.fn().mockImplementation(async (_workspaceId: string, assetIds: string[]) => ({
       count: new Set(assetIds).size,
@@ -67,7 +62,7 @@ function repository() {
 }
 
 function service(repo = repository()) {
-  return { service: new GenerationService(repo, { provider: 'gemini', model: 'gemini-test', maxAttempts: 3 }), repo };
+  return { service: new GenerationService(repo, { provider: 'gemini', model: 'gemini-test' }), repo };
 }
 
 describe('GenerationService', () => {
@@ -143,21 +138,6 @@ describe('GenerationService', () => {
     expect(repo.createEditGeneration).not.toHaveBeenCalled();
   });
 
-  it('pins retry to the explicit current revision and preserves original assets', async () => {
-    const repo = repository();
-    repo.getForUser.mockResolvedValue(record({ status: 'FAILED' }));
-    repo.getLatestUserMessage.mockResolvedValue({
-      content: 'Change the title', assetIds: ['00000000-0000-4000-8000-000000000008'],
-    });
-    const { service: generations } = service(repo);
-
-    await generations.retry(ids.user, ids.generation, { baseSourceHash: ids.sourceHash, baseRevision: 2 }, 'retry-key');
-
-    expect(repo.createRetryGeneration).toHaveBeenCalledWith(expect.objectContaining({
-      baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: ['00000000-0000-4000-8000-000000000008'],
-    }));
-  });
-
   it('rejects an aggregate asset selection above the workspace budget', async () => {
     const repo = repository();
     repo.summarizeReadyAssets.mockResolvedValue({ count: 1, totalBytes: 500_000_001 });
@@ -177,9 +157,9 @@ describe('GenerationService', () => {
       generationId: ids.generation,
       sequence: index + 1,
       type: 'PROGRESS',
-      status: 'RENDERING' as const,
-      stage: 'CAPTURING_FRAMES',
-      progress: 60,
+      status: 'VALIDATING' as const,
+      stage: 'COMPILE_CHECK',
+      progress: 75,
       message: null,
       data: null,
       createdAt: new Date(),

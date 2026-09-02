@@ -20,7 +20,7 @@ export function routeSkills(
   input: SkillRouteInput,
 ): RoutedSkill[] {
   const haystack = `${input.intent} ${input.prompt} ${(input.assetTypes ?? []).join(' ')}`.toLowerCase();
-  const requiredIds = ['core', 'helpers', 'quality-reference'];
+  const requiredIds = ['core'];
   const required = requiredIds.map((id) => {
     const skill = bundle.skills.find((candidate) => candidate.id === id);
     if (!skill) throw new Error(`Required Motionly skill is missing: ${id}`);
@@ -33,7 +33,7 @@ export function routeSkills(
     reason: 'Required for every Motionly generation.',
     content: skill.content,
   }));
-  const maxCharacters = input.maxCharacters ?? 24_000;
+  const maxCharacters = input.maxCharacters ?? 12_000;
   const requiredCharacters = required.reduce((total, skill) => total + skill.content.length, 0);
   if (requiredCharacters > maxCharacters) throw new Error('Motionly required skills exceed the routing character budget.');
   const candidates = bundle.skills.filter((skill) => !requiredIds.includes(skill.id)).map((skill) => {
@@ -44,6 +44,7 @@ export function routeSkills(
 
   let characters = requiredCharacters;
   for (const { skill, matches } of candidates) {
+    if (selected.length >= 3) break;
     if (characters + skill.content.length > maxCharacters) continue;
     selected.push({
       id: skill.id,

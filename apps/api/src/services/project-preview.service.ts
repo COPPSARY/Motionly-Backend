@@ -7,8 +7,11 @@ import type { ProjectSourceFiles } from './project.service.js';
 
 const namespace = 'motionly-project';
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
-const runtimeEntry = path.resolve(sourceDirectory, '../../../../packages/motionly-runtime/src/index.ts');
-const presetsEntry = path.resolve(sourceDirectory, '../../../../packages/motionly-runtime/src/presets.ts');
+const isCompiled = import.meta.url.endsWith('.js');
+const ext = isCompiled ? '.js' : '.ts';
+const runtimeEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/index${ext}`);
+const presetsEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/presets${ext}`);
+const runtimeSourceDirectory = path.dirname(runtimeEntry);
 const gsapEntry = fileURLToPath(import.meta.resolve('gsap'));
 
 export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{ bundle: string; styles: string }> {
@@ -19,6 +22,11 @@ export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{
       context.onResolve({ filter: /^@motionly\/runtime$/ }, () => ({ path: runtimeEntry }));
       context.onResolve({ filter: /^@motionly\/presets$/ }, () => ({ path: presetsEntry }));
       context.onResolve({ filter: /^gsap$/ }, () => ({ path: gsapEntry }));
+      context.onResolve({ filter: /^\.\// }, (args) => {
+        if (!args.importer.startsWith(runtimeSourceDirectory) || !args.path.endsWith('.js')) return null;
+        if (isCompiled) return null;
+        return { path: path.resolve(path.dirname(args.importer), args.path.replace(/\.js$/, '.ts')) };
+      });
       context.onResolve({ filter: /^\.\//, namespace }, (args) => {
         const requested = args.path.slice(2);
         const file = requested.endsWith('?raw') ? requested.slice(0, -4) : requested;

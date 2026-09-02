@@ -1,146 +1,99 @@
-import type { GenerationModelProvider, ModelEvent, ModelTurnInput, ModelMessage, ModelContent, ModelProviderError } from './types.js';
+import {
+  ModelProviderError,
+  type GenerationModelProvider,
+  type ModelResponse,
+  type ModelTurnInput,
+  type ProviderErrorCode,
+} from './types.js';
 
 export class OpenAICompatibleProvider implements GenerationModelProvider {
-  readonly name = 'openai-compatible';
+  readonly name = 'openai-compatible' as const;
+  private readonly baseUrl: string;
 
-  constructor(
-    private readonly baseUrl: string,
-    private readonly apiKey: string,
-  ) {
-    // Ensure base URL does not have trailing slash
-    this.baseUrl = this.baseUrl.replace(/\/$/, '');
+  constructor(baseUrl: string, private readonly apiKey: string) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
-  async *runTurn(input: ModelTurnInput, signal: AbortSignal): AsyncIterable<ModelEvent> {
-    const messages = this.buildMessages(input);
-    
-    // Map tool definitions if any (standard OpenAI function calling)
-    const tools = input.tools.map(tool => ({
+  async generate(input: ModelTurnInput, signal: AbortSignal): Promise<ModelResponse> {
+    const tools = input.tools.map((tool) => ({
       type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters
-      }
+      function: { name: tool.name, description: tool.description, parameters: tool.parameters },
     }));
-
-    const requestBody: any = {
-      model: input.model,
-      messages: messages,
-      stream: false,
-      max_tokens: input.limits.maxOutputTokens
-    };
-    
-    if (tools.length > 0) {
-      requestBody.tools = tools;
-    }
-
-    // DEBUG: Log the exact request being sent to the AI proxy
-    console.log('\n--- AI REQUEST TO PROXY ---');
-    console.log(JSON.stringify(requestBody, null, 2));
-    console.log('---------------------------\n');
-
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(input.limits.timeoutMs)]);
+    let response: Response;
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(input.limits.timeoutMs)
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: input.model,
+          messages: [
+            { role: 'system', content: input.systemInstructions },
+            { role: 'user', content: input.prompt },
+          ],
+          stream: false,
+          max_tokens: input.limits.maxOutputTokens,
+          ...(tools.length ? {
+            tools,
+            tool_choice: tools.length === 1
+              ? { type: 'function', function: { name: tools[0]!.function.name } }
+              : 'required',
+          } : {}),
+        }),
+        signal: requestSignal,
       });
-
-      if (!response.ok) {
-        let errorMsg = `HTTP Error ${response.status}`;
-        try {
-          const errBody = await response.json();
-          errorMsg = JSON.stringify(errBody);
-        } catch { /* ignore */ }
-        
-        let code = 'PROVIDER_ERROR';
-        if (response.status === 429) code = 'PROVIDER_RATE_LIMITED';
-        if (response.status === 401 || response.status === 403) code = 'PROVIDER_AUTH_FAILED';
-        if (response.status >= 500) code = 'PROVIDER_UNAVAILABLE';
-        
-        // @ts-ignore (we know ModelProviderError exists from types.ts)
-        const { ModelProviderError } = await import('./types.js');
-        throw new ModelProviderError(code as any, errorMsg, response.status === 429 || response.status >= 500);
-      }
-
-      const payload = await response.json() as any;
-      
-      // DEBUG: Log the exact response received from the AI proxy
-      console.log('\n--- AI RESPONSE FROM PROXY ---');
-      console.log(JSON.stringify(payload, null, 2));
-      console.log('------------------------------\n');
-      
-      const choice = payload.choices?.[0];
-      const message = choice?.message;
-      if (message?.content) yield { type: 'text', text: String(message.content) };
-      for (const call of message?.tool_calls ?? []) {
-        const args = typeof call.function?.arguments === 'string'
-          ? JSON.parse(call.function.arguments || '{}')
-          : (call.function?.arguments ?? {});
-        yield { type: 'tool_call', id: call.id || `tool-${crypto.randomUUID()}`, name: call.function?.name || 'unknown', arguments: args };
-      }
-      if (payload.usage) yield {
-        type: 'usage',
-        inputTokens: payload.usage.prompt_tokens || 0,
-        outputTokens: payload.usage.completion_tokens || 0,
-        totalTokens: payload.usage.total_tokens || 0,
-      };
-      yield { type: 'completed', finishReason: choice?.finish_reason || 'stop', providerRequestId: payload.id };
-      
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.name === 'TimeoutError') {
-        const { ModelProviderError } = await import('./types.js');
-        throw new ModelProviderError('PROVIDER_TIMEOUT', 'Provider request timed out', true);
-      }
-      throw err;
+    } catch (error) {
+      if (requestSignal.aborted) throw new ModelProviderError('PROVIDER_TIMEOUT', 'Provider request timed out or was cancelled.', false);
+      throw error;
     }
+
+    if (!response.ok) {
+      let message = `Provider request failed with HTTP ${response.status}.`;
+      try { message = JSON.stringify(await response.json()).slice(0, 1_000); } catch { /* keep status message */ }
+      const code: ProviderErrorCode = response.status === 429
+        ? 'PROVIDER_RATE_LIMITED'
+        : response.status === 401 || response.status === 403
+          ? 'PROVIDER_AUTH_FAILED'
+          : response.status >= 500 ? 'PROVIDER_UNAVAILABLE' : 'PROVIDER_ERROR';
+      throw new ModelProviderError(code, message, false);
+    }
+
+    const payload = await response.json() as {
+      id?: string;
+      choices?: Array<{
+        finish_reason?: string;
+        message?: { content?: string; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string | Record<string, unknown> } }> };
+      }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    };
+    const choice = payload.choices?.[0];
+    const toolCalls = (choice?.message?.tool_calls ?? []).map((call) => ({
+      id: call.id ?? `tool-${crypto.randomUUID()}`,
+      name: call.function?.name ?? '',
+      arguments: parseArguments(call.function?.arguments),
+    }));
+    return {
+      text: choice?.message?.content ?? '',
+      toolCalls,
+      usage: {
+        inputTokens: payload.usage?.prompt_tokens ?? 0,
+        outputTokens: payload.usage?.completion_tokens ?? 0,
+        totalTokens: payload.usage?.total_tokens ?? 0,
+      },
+      finishReason: choice?.finish_reason ?? 'stop',
+      ...(payload.id ? { providerRequestId: payload.id } : {}),
+    };
   }
+}
 
-  private buildMessages(input: ModelTurnInput): any[] {
-    const messages: any[] = [];
-    
-    if (input.systemInstructions) {
-      messages.push({
-        role: 'system',
-        content: input.systemInstructions
-      });
-    }
-
-    for (const msg of input.messages) {
-      const role = msg.role;
-      const toolCalls = msg.content.filter((content) => content.type === 'tool_call');
-      const toolResults = msg.content.filter((content) => content.type === 'tool_result');
-      if (role === 'assistant' && toolCalls.length) {
-        messages.push({
-          role: 'assistant',
-          ...(msg.content.find((content) => content.type === 'text')?.type === 'text'
-            ? { content: (msg.content.find((content) => content.type === 'text') as any).text }
-            : { content: null }),
-          tool_calls: toolCalls.map((content: any) => ({ id: content.id, type: 'function', function: { name: content.name, arguments: JSON.stringify(content.arguments) } })),
-        });
-        continue;
-      }
-      if (role === 'user' && toolResults.length) {
-        for (const content of toolResults as any[]) messages.push({ role: 'tool', tool_call_id: content.id, name: content.name, content: JSON.stringify(content.result) });
-        continue;
-      }
-      if (msg.content.length === 1 && msg.content[0] && msg.content[0].type === 'text') {
-        messages.push({ role, content: (msg.content[0] as any).text });
-      } else {
-        const contentArr = msg.content.map(c => {
-          if (!c) return { type: 'text', text: '' };
-          if (c.type === 'text') return { type: 'text', text: (c as any).text || '' };
-          if (c.type === 'image') return { type: 'image_url', image_url: { url: `data:${(c as any).mimeType};base64,${(c as any).data}` } };
-          return { type: 'text', text: '' };
-        });
-        messages.push({ role, content: contentArr });
-      }
-    }
-    return messages;
+function parseArguments(value: string | Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value !== 'string') return value;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
+    return parsed as Record<string, unknown>;
+  } catch {
+    throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'Provider returned invalid changed-file arguments.', false);
   }
 }

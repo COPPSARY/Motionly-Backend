@@ -139,7 +139,6 @@ export async function startServer() {
   const generations = new GenerationService(new DatabaseGenerationRepository(db), {
     provider: environment.aiProvider,
     model: environment.aiModel,
-    maxAttempts: environment.generationMaxAttempts,
     maxActivePerUser: environment.generationMaxActivePerUser,
   });
   const objectStorage = await LocalFilesystemObjectStorage.create(path.resolve(environment.objectStorageLocalRoot));

@@ -6,31 +6,21 @@ export interface ModelToolDefinition {
   parameters: JsonSchema;
 }
 
-export type ModelContent =
-  | { type: 'text'; text: string }
-  | { type: 'image'; mimeType: 'image/png' | 'image/jpeg' | 'image/webp'; data: string }
-  | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; providerState?: unknown }
-  | { type: 'tool_result'; id: string; name: string; result: Record<string, unknown> };
-
-export interface ModelMessage {
-  role: 'user' | 'assistant';
-  content: ModelContent[];
-}
-
 export interface ModelTurnInput {
   model: string;
-  provider?: string;
   systemInstructions: string;
-  messages: ModelMessage[];
+  prompt: string;
   tools: ModelToolDefinition[];
   limits: { maxOutputTokens: number; timeoutMs: number };
 }
 
-export type ModelEvent =
-  | { type: 'text'; text: string }
-  | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; providerState?: unknown }
-  | { type: 'usage'; inputTokens: number; outputTokens: number; totalTokens: number }
-  | { type: 'completed'; finishReason: string; providerRequestId?: string };
+export interface ModelResponse {
+  text: string;
+  toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  finishReason: string;
+  providerRequestId?: string;
+}
 
 export type ProviderErrorCode =
   | 'PROVIDER_RATE_LIMITED'
@@ -55,5 +45,5 @@ export class ModelProviderError extends Error {
 
 export interface GenerationModelProvider {
   readonly name: 'gemini' | 'openai' | 'anthropic' | 'openai-compatible';
-  runTurn(input: ModelTurnInput, signal: AbortSignal): AsyncIterable<ModelEvent>;
+  generate(input: ModelTurnInput, signal: AbortSignal): Promise<ModelResponse>;
 }

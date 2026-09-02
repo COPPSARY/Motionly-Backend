@@ -11,13 +11,9 @@ export const generationStatusSchema = z.enum([
   'PREPARING',
   'GENERATING',
   'VALIDATING',
-  'RENDERING',
-  'REVIEWING',
-  'REPAIRING',
   'PUBLISHING',
   'CANCELLING',
   'COMPLETED',
-  'AWAITING_APPLY',
   'CANCELLED',
   'FAILED',
 ]);
@@ -25,7 +21,6 @@ export type GenerationStatus = z.infer<typeof generationStatusSchema>;
 
 export const TERMINAL_GENERATION_STATUSES = [
   'COMPLETED',
-  'AWAITING_APPLY',
   'CANCELLED',
   'FAILED',
 ] as const satisfies readonly GenerationStatus[];
@@ -39,17 +34,11 @@ export function isTerminalGenerationStatus(status: GenerationStatus): boolean {
 const legalTransitions: Readonly<Record<GenerationStatus, ReadonlySet<GenerationStatus>>> = {
   QUEUED: new Set(['PREPARING', 'CANCELLING', 'CANCELLED', 'FAILED']),
   PREPARING: new Set(['GENERATING', 'CANCELLING', 'FAILED']),
-  // Source-only generations skip the expensive build/render/review stages and
-  // publish immediately after the model submits a validated source edit.
-  GENERATING: new Set(['PREPARING', 'VALIDATING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'FAILED']),
-  VALIDATING: new Set(['PREPARING', 'RENDERING', 'PUBLISHING', 'REPAIRING', 'CANCELLING', 'FAILED']),
-  RENDERING: new Set(['PREPARING', 'PUBLISHING', 'REVIEWING', 'REPAIRING', 'CANCELLING', 'FAILED']),
-  REVIEWING: new Set(['PREPARING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'FAILED']),
-  REPAIRING: new Set(['PREPARING', 'GENERATING', 'VALIDATING', 'CANCELLING', 'FAILED']),
-  PUBLISHING: new Set(['PREPARING', 'COMPLETED', 'AWAITING_APPLY', 'CANCELLING', 'FAILED']),
+  GENERATING: new Set(['VALIDATING', 'CANCELLING', 'FAILED']),
+  VALIDATING: new Set(['PUBLISHING', 'CANCELLING', 'FAILED']),
+  PUBLISHING: new Set(['COMPLETED', 'CANCELLING', 'FAILED']),
   CANCELLING: new Set(['CANCELLED', 'FAILED']),
   COMPLETED: new Set(),
-  AWAITING_APPLY: new Set(['PUBLISHING', 'COMPLETED']),
   CANCELLED: new Set(),
   FAILED: new Set(),
 };
@@ -117,26 +106,9 @@ export const editGenerationRequestSchema = z.strictObject({
 });
 export type EditGenerationRequest = z.infer<typeof editGenerationRequestSchema>;
 
-export const retryGenerationRequestSchema = z.strictObject({
-  baseSourceHash: sourceHashSchema.optional(),
-  baseRevision: z.number().int().min(1).optional(),
-}).superRefine((request, context) => {
-  if ((request.baseSourceHash === undefined) !== (request.baseRevision === undefined)) {
-    context.addIssue({ code: 'custom', message: 'baseSourceHash and baseRevision must be provided together.' });
-  }
-});
-export type RetryGenerationRequest = z.infer<typeof retryGenerationRequestSchema>;
-
-export const applyGenerationRequestSchema = z.strictObject({
-  revision: z.number().int().min(1),
-});
-
 export const generationEventTypeSchema = z.enum([
   'STATUS_CHANGED',
   'PROGRESS',
-  'ATTEMPT_STARTED',
-  'ATTEMPT_COMPLETED',
-  'ARTIFACT_CREATED',
   'COMPLETED',
   'FAILED',
   'CANCELLED',
@@ -157,8 +129,6 @@ export const generationResourceSchema = z.strictObject({
   outputSourceHash: sourceHashSchema.nullable(),
   provider: modelProviderSchema,
   model: z.string().min(1).max(200),
-  attempt: z.number().int().min(0),
-  maxAttempts: z.number().int().min(1),
   createdAt: z.iso.datetime(),
   startedAt: z.iso.datetime().nullable(),
   finishedAt: z.iso.datetime().nullable(),

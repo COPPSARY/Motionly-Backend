@@ -27,8 +27,6 @@ function dependencies() {
       list: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } }),
       get: vi.fn().mockResolvedValue({ id: generationId, projectId, status: 'QUEUED' }),
       cancel: vi.fn().mockResolvedValue({ id: generationId, projectId, status: 'CANCELLING' }),
-      retry: vi.fn().mockResolvedValue({ id: generationId, projectId, status: 'QUEUED' }),
-      apply: vi.fn().mockResolvedValue({ outputSourceHash: sourceHash, projectRevision: 2 }),
       events: vi.fn().mockResolvedValue({
         events: [{ sequence: 2, type: 'COMPLETED', status: 'COMPLETED' }],
         isTerminal: true,
@@ -87,23 +85,18 @@ describe('Generation API', () => {
     expect(deps.generations.get).toHaveBeenCalledWith(user.id, generationId);
   });
 
-  it('cancels, retries, applies, and replays terminal SSE events', async () => {
+  it('cancels and replays terminal SSE events', async () => {
     const deps = dependencies();
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
 
     await authenticated(request(app).post(`/v1/generations/${generationId}/cancel`))
       .set('Idempotency-Key', 'cancel-1').send({}).expect(202);
-    await authenticated(request(app).post(`/v1/generations/${generationId}/retry`))
-      .set('Idempotency-Key', 'retry-1').send({}).expect(202);
-    await authenticated(request(app).post(`/v1/generations/${generationId}/apply`))
-      .set('Idempotency-Key', 'apply-1').send({ revision: 1 }).expect(201);
     const events = await authenticated(request(app).get(`/v1/generations/${generationId}/events`))
       .set('Last-Event-ID', '1').expect(200);
 
     expect(events.headers['content-type']).toContain('text/event-stream');
     expect(events.text).toContain('id: 2');
     expect(events.text).toContain('event: completed');
-    expect(deps.generations.retry).toHaveBeenCalledWith(user.id, generationId, {}, 'retry-1');
     expect(deps.generations.events).toHaveBeenCalledWith(user.id, generationId, 1);
   });
 

@@ -3,14 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   artifacts,
-  generationAttempts,
-  generationToolCalls,
   generationEvents,
   generationInputFiles,
   generationJobs,
   generationMessages,
-  generationOutputFiles,
-  generationOutputs,
   generationThreads,
   projects,
   projectFiles,
@@ -28,16 +24,12 @@ describe('database schema', () => {
     expect(getTableName(projectFiles)).toBe('project_files');
   });
 
-  it('stores durable generation, event, output, artifact, and queue state', () => {
+  it('stores durable generation, event, artifact, and queue state', () => {
     expect(getTableName(generationThreads)).toBe('generation_threads');
     expect(getTableName(generationMessages)).toBe('generation_messages');
     expect(getTableName(generationJobs)).toBe('generation_jobs');
     expect(getTableName(generationInputFiles)).toBe('generation_input_files');
-    expect(getTableName(generationAttempts)).toBe('generation_attempts');
-    expect(getTableName(generationToolCalls)).toBe('generation_tool_calls');
     expect(getTableName(generationEvents)).toBe('generation_events');
-    expect(getTableName(generationOutputs)).toBe('generation_outputs');
-    expect(getTableName(generationOutputFiles)).toBe('generation_output_files');
     expect(getTableName(artifacts)).toBe('artifacts');
     expect(getTableName(queueTasks)).toBe('queue_tasks');
   });
