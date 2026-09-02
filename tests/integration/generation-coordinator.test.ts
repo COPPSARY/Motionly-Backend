@@ -73,13 +73,16 @@ describe('GenerationCoordinator', () => {
   it('makes one model request, checks the bundle, and saves a revision', async () => {
     const files = { ...STARTER_SOURCE_FILES, 'styles.css': `${STARTER_SOURCE_FILES['styles.css']}\n.motionly-stage { color: yellow; }\n` };
     const provider = new FakeModelProvider(response([{ path: 'styles.css', content: files['styles.css'] }]));
-    const { store, transitions } = fakeStore();
+    const createContext = { ...context(), job: { ...context().job, intent: 'CREATE' as const } };
+    const { store, transitions } = fakeStore(createContext);
     const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
 
     await coordinator.run(generationId, new AbortController().signal);
 
     expect(provider.inputs).toHaveLength(1);
     expect(provider.inputs[0]!.prompt).toContain('--- composition.html ---');
+    expect(provider.inputs[0]!.systemInstructions).toContain('vendored Motionly promo reference');
+    expect(provider.inputs[0]!.systemInstructions).toContain('Reference: motionly-promo/composition.html');
     expect(provider.inputs[0]!.tools).toHaveLength(1);
     expect(store.saveRevision).toHaveBeenCalledWith(generationId, files);
     expect(transitions.map((transition) => transition.status)).toEqual([

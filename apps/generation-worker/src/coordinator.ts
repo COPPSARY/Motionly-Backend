@@ -1,3 +1,7 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { bundleProjectPreview } from '../../api/src/services/project-preview.service.js';
 import { PROJECT_SOURCE_PATHS, type ProjectSourceFiles, type ProjectSourcePath, hashSourceFiles } from '../../api/src/services/project.service.js';
 import type { GenerationModelProvider, ModelResponse, ModelToolDefinition } from '../../../packages/ai-providers/src/types.js';
@@ -70,9 +74,10 @@ export class GenerationCoordinator {
       message: 'Asking AI for the source edit.',
     });
 
+    const presetReference = context.job.intent === 'CREATE' ? await loadPromoReference() : '';
     const response = await this.provider.generate({
       model: context.job.model,
-      systemInstructions: buildSystemInstructions(routedSkills),
+      systemInstructions: buildSystemInstructions(routedSkills, presetReference),
       prompt: buildPrompt(context),
       tools: [changedFilesTool],
       limits: {
@@ -121,16 +126,32 @@ export class GenerationCoordinator {
   }
 }
 
-function buildSystemInstructions(skills: ReturnType<typeof routeSkills>): string {
+function buildSystemInstructions(skills: ReturnType<typeof routeSkills>, presetReference = ''): string {
   return [
     'You are editing a Motionly code-first composition.',
     'Make exactly one tool call to return_changed_files. Return only changed files, not the full project.',
     'Only these files may be edited: composition.html, styles.css, timeline.js, index.ts.',
     'Preserve unrelated source exactly.',
     'For CREATE requests, preserve and extend the visual system: return meaningful semantic HTML, substantial CSS styling, intentional typography and placement, and real GSAP timeline choreography. Never replace a composition with plain text or leave styles.css empty.',
+    presetReference ? 'The following is the vendored Motionly promo reference. Learn from its implementation and copy/adapt its composition patterns when useful. Replace its branding, exact copy, assets, and timings with the user request; do not import from the reference directory.' : '',
     '',
+    presetReference,
     skills.map((skill) => `# Skill: ${skill.id}\n${skill.content}`).join('\n\n'),
   ].join('\n');
+}
+
+async function loadPromoReference(): Promise<string> {
+  const referenceDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../packages/motionly-runtime/reference/motionly-promo');
+  const [composition, timeline] = await Promise.all([
+    readFile(path.join(referenceDirectory, 'composition.html'), 'utf8'),
+    readFile(path.join(referenceDirectory, 'timeline.js'), 'utf8'),
+  ]);
+  return [
+    '# Reference: motionly-promo/composition.html',
+    composition,
+    '# Reference: motionly-promo/timeline.js',
+    timeline,
+  ].join('\n\n');
 }
 
 function buildPrompt(context: GenerationJobContext): string {
