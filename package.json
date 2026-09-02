@@ -14,7 +14,7 @@
     "build": "npm run build:api",
     "build:api": "tsc -p tsconfig.build.json",
     "build:web": "vite build --config apps/web/vite.config.ts",
-    "start": "node --env-file=.env dist/apps/api/src/server.js",
+    "start": "node dist/apps/api/src/server.js",
     "start:generation-worker": "node --env-file=.env dist/apps/generation-worker/src/worker.js",
     "cleanup:generation-artifacts": "node --env-file=.env dist/apps/generation-worker/src/cleanup.js",
     "docker:build:renderer": "docker build -f Dockerfile.renderer -t motionly-renderer:local .",
