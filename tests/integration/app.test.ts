@@ -108,6 +108,25 @@ describe('Motionly API', () => {
     ]));
   });
 
+  it('uses secure cross-site session cookies in production', async () => {
+    const app = createApp({
+      services: dependencies(),
+      frontendOrigins: ['https://app.motionly.site'],
+      secureCookies: true,
+      nodeEnv: 'production',
+    });
+
+    const response = await request(app)
+      .post('/v1/auth/login')
+      .send({ email: 'designer@example.com', password: 'secret123' });
+
+    expect(response.headers['set-cookie']).toEqual(expect.arrayContaining([
+      expect.stringContaining('motionly_session=opaque-session'),
+      expect.stringContaining('SameSite=None'),
+      expect.stringContaining('Secure'),
+    ]));
+  });
+
   it('rejects unauthenticated workspace requests', async () => {
     const app = createApp({
       services: dependencies(),
