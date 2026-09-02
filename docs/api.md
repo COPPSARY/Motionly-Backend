@@ -79,6 +79,7 @@ The `files` object is only an HTTP transport envelope for the four canonical aut
 ```text
 GET    /v1/workspaces/:workspaceId/assets
 POST   /v1/workspaces/:workspaceId/assets/uploads
+PUT    /v1/assets/uploads/:uploadId/content
 POST   /v1/workspaces/:workspaceId/assets/uploads/:uploadId/complete
 GET    /v1/assets/:assetId
 GET    /v1/assets/:assetId/download
@@ -87,7 +88,28 @@ POST   /v1/projects/:projectId/assets
 DELETE /v1/projects/:projectId/assets/:assetId
 ```
 
-Large uploads use short-lived signed URLs. The completion endpoint verifies the stored object before the backend creates or activates its asset record.
+The V1 local-filesystem adapter returns a short-lived authenticated API upload URL. Send the exact declared bytes and content type to that URL, then call the completion endpoint; completion verifies size and SHA-256 before marking the asset `READY`. A future S3-compatible adapter can return a signed object URL without changing this three-step lifecycle.
+
+## Cloud AI generation
+
+```text
+POST /v1/workspaces/:workspaceId/generations
+GET  /v1/projects/:projectId/generations
+POST /v1/projects/:projectId/generations
+GET  /v1/generations/:generationId
+GET  /v1/generations/:generationId/events
+POST /v1/generations/:generationId/cancel
+POST /v1/generations/:generationId/retry
+POST /v1/generations/:generationId/apply
+GET  /v1/generations/:generationId/artifacts
+GET  /v1/artifacts/:artifactId/download
+```
+
+Create/edit/cancel/retry/apply mutations require `X-CSRF-Token` and `Idempotency-Key`. Create and edit return `202 Accepted`; apply returns `201 Created`. Generation status is provider-neutral and can be polled or streamed through replayable SSE. A stream resumes after the numeric sequence in `Last-Event-ID` and ends after a terminal event.
+
+Jobs edit only `composition.html`, `styles.css`, `timeline.js`, and `index.ts`. Passing output becomes a new immutable version. If the project's revision changed while a job ran, the candidate remains stored as `AWAITING_APPLY` rather than replacing newer work.
+
+The machine-readable contract is served by `GET /openapi.json`. The detailed backend lifecycle and frontend integration sequence are in `cloud-ai-generation.md` and `frontend-ai-generation-integration.md`.
 
 ## Rendering
 

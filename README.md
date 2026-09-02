@@ -36,7 +36,7 @@ V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, im
 
 | Concern | Default implementation | Portability boundary |
 | --- | --- | --- |
-| Runtime | Node.js 20.19 or newer | Standard Node.js deployment |
+| Runtime | Node.js 22.12 or newer | Standard Node.js deployment |
 | Language | TypeScript | Shared types with the Motionly ecosystem |
 | HTTP API | Express.js | OpenAPI is the client contract |
 | Validation | Zod | Request and response schemas remain framework-neutral |

@@ -1,0 +1,10 @@
+[
+  { "id": "valid-starter", "kind": "valid", "expectedValid": true },
+  { "id": "reject-motion-file", "kind": "append", "file": "composition.html", "content": ".motion", "expectedCode": "MOTION_FILE_FORBIDDEN" },
+  { "id": "reject-network", "kind": "append", "file": "timeline.js", "content": "fetch('https://example.com')", "expectedCode": "REMOTE_SOURCE_FORBIDDEN" },
+  { "id": "reject-node-api", "kind": "append", "file": "timeline.js", "content": "process.env.GEMINI_API_KEY", "expectedCode": "NODE_API_FORBIDDEN" },
+  { "id": "reject-json-dsl", "kind": "append", "file": "index.ts", "content": "const animationDocument = {};", "expectedCode": "JSON_ANIMATION_DSL_FORBIDDEN" },
+  { "id": "reject-generated-dom", "kind": "append", "file": "index.ts", "content": "document.createElement('main')", "expectedCode": "THIN_ADAPTER_VIOLATION" },
+  { "id": "reject-browser-exfiltration", "kind": "append", "file": "timeline.js", "content": "navigator.sendBeacon('/collect', document.body.textContent)", "expectedCode": "BROWSER_ESCAPE_API_FORBIDDEN" },
+  { "id": "reject-active-html", "kind": "append", "file": "composition.html", "content": "<form action='/collect'><input name='secret'></form>", "expectedCode": "ACTIVE_HTML_FORBIDDEN" }
+]

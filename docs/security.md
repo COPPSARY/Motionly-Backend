@@ -13,8 +13,8 @@ Every project, asset, and render operation is authorized at the workspace bounda
 ## Data protection
 
 - Store asset and render binaries in private object-storage buckets, not PostgreSQL.
-- Issue short-lived signed upload and download URLs.
-- Validate asset size, filename extension, MIME type, and content before use.
+- Issue short-lived authenticated upload sessions. The local V1 adapter streams downloads through authorized API routes; a future remote-storage adapter may use short-lived signed URLs.
+- Validate asset size, SHA-256, filename extension, MIME type, and content before use; the completion step re-verifies stored bytes so partial/crash-left uploads cannot become `READY`.
 - Never send database credentials, storage credentials, service-role keys, or authentication secrets to the browser.
 - Redact secrets and internal exception details from responses and logs.
 
@@ -29,8 +29,19 @@ Every project, asset, and render operation is authorized at the workspace bounda
 
 ## Operational controls
 
-- Use request-size limits and rate limits for public endpoints.
+- Use request-size limits and rate limits for public endpoints. Authentication is IP-limited; generation mutations are additionally user-limited, and multi-instance deployments must use a shared edge/store-backed limiter.
 - Use safe machine-readable error codes and user-safe error messages.
 - Track attempts, timeouts, cancellation, retries, and cleanup for render jobs.
 - Record security-relevant audit events when team collaboration is introduced.
 - Test that users cannot access another workspace's resources.
+
+## Cloud generation controls
+
+- Model keys exist only in the generation-worker environment and are never mounted into renderer containers.
+- The coordinator exposes enum-constrained source tools; the model receives no shell or arbitrary filesystem tool.
+- Renderer containers run non-root with no network, read-only root filesystem, dropped Linux capabilities, `no-new-privileges`, bounded CPU/memory/PIDs/time, and one staged workspace mount.
+- Source policy rejects traversal, symlinks, remote imports, Node/process APIs, `.motion`, JSON animation DSLs, and alternate renderers.
+- Tool-call audits persist only tool names, paths, counts, byte sizes, outcomes, durations, and stable error codes; they never persist source-edit contents or prompts.
+- Local development object/workspace roots (`data/` and `tmp/`) are ignored by Git; production deployments must place them on access-controlled volumes with retention and backup policies appropriate to their different lifetimes.
+- Publication is conditional on the pinned project version/revision, so concurrent work is retained.
+- Prompt content, project files, raw provider errors, keys, and container internals are not written to normal application logs.

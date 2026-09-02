@@ -15,6 +15,34 @@
       "when": 1788251295763,
       "tag": "0001_sharp_proemial_gods",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788275620330,
+      "tag": "0002_exotic_calypso",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788277181097,
+      "tag": "0003_brief_sage",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788277312015,
+      "tag": "0004_sparkling_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788289365551,
+      "tag": "0005_first_bucky",
+      "breakpoints": true
     }
   ]
 }
