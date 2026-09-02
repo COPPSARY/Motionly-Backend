@@ -17,13 +17,13 @@ export const openApiDocument = {
       },
       Generation: {
         type: 'object',
-        required: ['id', 'workspaceId', 'projectId', 'threadId', 'intent', 'status', 'stage', 'progress', 'baseVersionId', 'baseRevision', 'outputVersionId', 'provider', 'model', 'attempt', 'maxAttempts', 'createdAt', 'startedAt', 'finishedAt', 'error'],
+        required: ['id', 'workspaceId', 'projectId', 'threadId', 'intent', 'status', 'stage', 'progress', 'baseSourceHash', 'baseRevision', 'outputSourceHash', 'provider', 'model', 'attempt', 'maxAttempts', 'createdAt', 'startedAt', 'finishedAt', 'error'],
         properties: {
           id: { type: 'string', format: 'uuid' }, workspaceId: { type: 'string', format: 'uuid' }, projectId: { type: 'string', format: 'uuid' },
           threadId: { type: 'string', format: 'uuid' }, intent: { enum: ['CREATE', 'EDIT'] },
           status: { enum: ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'COMPLETED', 'AWAITING_APPLY', 'CANCELLED', 'FAILED'] },
           stage: { type: 'string' }, progress: { type: 'integer', minimum: 0, maximum: 100 },
-          baseVersionId: { type: 'string', format: 'uuid' }, baseRevision: { type: 'integer' }, outputVersionId: { type: ['string', 'null'], format: 'uuid' },
+          baseSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, baseRevision: { type: 'integer' }, outputSourceHash: { type: ['string', 'null'], pattern: '^[a-f0-9]{64}$' },
           provider: { enum: ['gemini', 'openai', 'anthropic', 'openai-compatible'] }, model: { type: 'string' }, attempt: { type: 'integer' }, maxAttempts: { type: 'integer' },
           createdAt: { type: 'string', format: 'date-time' }, startedAt: { type: ['string', 'null'], format: 'date-time' }, finishedAt: { type: ['string', 'null'], format: 'date-time' },
           error: { oneOf: [{ type: 'null' }, { $ref: '#/components/schemas/GenerationError' }] },
@@ -31,21 +31,19 @@ export const openApiDocument = {
       },
       Project: {
         type: 'object',
-        required: ['id', 'workspaceId', 'name', 'slug', 'width', 'height', 'fps', 'duration', 'currentVersionId', 'revision', 'createdBy', 'createdAt', 'updatedAt', 'archivedAt'],
+        required: ['id', 'workspaceId', 'name', 'slug', 'width', 'height', 'fps', 'duration', 'sourceHash', 'revision', 'createdBy', 'createdAt', 'updatedAt', 'savedAt', 'archivedAt'],
         properties: {
           id: { type: 'string', format: 'uuid' }, workspaceId: { type: 'string', format: 'uuid' }, name: { type: 'string' }, slug: { type: 'string' },
           width: { type: 'integer' }, height: { type: 'integer' }, fps: { type: 'integer' }, duration: { type: 'number' },
-          currentVersionId: { type: ['string', 'null'], format: 'uuid' }, revision: { type: 'integer', minimum: 1 }, createdBy: { type: 'string', format: 'uuid' },
-          createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' }, archivedAt: { type: ['string', 'null'], format: 'date-time' },
+          sourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, revision: { type: 'integer', minimum: 1 }, createdBy: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' }, savedAt: { type: 'string', format: 'date-time' }, archivedAt: { type: ['string', 'null'], format: 'date-time' },
         },
       },
       ProjectSource: {
         type: 'object',
-        required: ['id', 'projectId', 'versionNumber', 'sourceHash', 'message', 'createdBy', 'createdAt', 'revision', 'files'],
+        required: ['sourceHash', 'savedAt', 'revision', 'files'],
         properties: {
-          id: { type: 'string', format: 'uuid' }, projectId: { type: 'string', format: 'uuid' }, versionNumber: { type: 'integer', minimum: 1 },
-          sourceHash: { type: 'string' }, message: { type: ['string', 'null'] }, createdBy: { type: 'string', format: 'uuid' },
-          createdAt: { type: 'string', format: 'date-time' }, revision: { type: 'integer', minimum: 1 },
+          sourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, savedAt: { type: 'string', format: 'date-time' }, revision: { type: 'integer', minimum: 1 },
           files: { type: 'object', additionalProperties: false, required: ['composition.html', 'styles.css', 'timeline.js', 'index.ts'], properties: {
             'composition.html': { type: 'string' }, 'styles.css': { type: 'string' }, 'timeline.js': { type: 'string' }, 'index.ts': { type: 'string' },
           } },
@@ -88,7 +86,7 @@ export const openApiDocument = {
     '/v1/generations/{generationId}/cancel': actionPath('Cancel a generation', 202),
     '/v1/generations/{generationId}/retry': actionPath('Retry a generation', 202, jsonBody({
       type: 'object', additionalProperties: false, properties: {
-        baseVersionId: { type: 'string', format: 'uuid' }, baseRevision: { type: 'integer', minimum: 1 },
+        baseSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, baseRevision: { type: 'integer', minimum: 1 },
       },
       description: 'Omit both base fields to retry from the latest project revision; otherwise provide both.',
     })),
@@ -202,9 +200,9 @@ function applyResponse() {
           properties: {
             data: {
               type: 'object',
-              required: ['outputVersionId'],
+              required: ['outputSourceHash'],
               properties: {
-                outputVersionId: { type: 'string', format: 'uuid' },
+                outputSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' },
                 projectRevision: { type: 'integer', minimum: 1 },
               },
             },
@@ -236,8 +234,8 @@ function createGenerationSchema() {
 
 function editGenerationSchema() {
   return {
-    type: 'object', additionalProperties: false, required: ['prompt', 'baseVersionId', 'baseRevision'], properties: {
-      prompt: { type: 'string', minLength: 1, maxLength: 20_000 }, baseVersionId: { type: 'string', format: 'uuid' },
+    type: 'object', additionalProperties: false, required: ['prompt', 'baseSourceHash', 'baseRevision'], properties: {
+      prompt: { type: 'string', minLength: 1, maxLength: 20_000 }, baseSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' },
       baseRevision: { type: 'integer', minimum: 1 }, threadId: { type: 'string', format: 'uuid' },
       assetIds: { type: 'array', maxItems: 50, items: { type: 'string', format: 'uuid' } },
     },

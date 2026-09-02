@@ -17,13 +17,13 @@ describe('generation contracts', () => {
 
     expect(editGenerationRequestSchema.parse({
       prompt: 'Improve the CTA',
-      baseVersionId: '00000000-0000-4000-8000-000000000001',
+      baseSourceHash: 'a'.repeat(64),
       baseRevision: 2,
     })).toMatchObject({ assetIds: [] });
 
     expect(() => editGenerationRequestSchema.parse({
       prompt: 'Improve the CTA',
-      baseVersionId: '00000000-0000-4000-8000-000000000001',
+      baseSourceHash: 'a'.repeat(64),
       baseRevision: 2,
       providerResponseId: 'must-not-leak',
     })).toThrow();

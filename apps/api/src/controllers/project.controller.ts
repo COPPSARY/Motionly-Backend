@@ -15,7 +15,6 @@ const sourceFilesSchema = z.strictObject({
   'timeline.js': z.string().min(1).max(1_000_000),
   'index.ts': z.string().min(1).max(1_000_000),
 });
-const messageSchema = z.string().trim().min(1).max(500).optional();
 const dimensionsSchema = {
   width: z.number().int().min(1).max(16_384),
   height: z.number().int().min(1).max(16_384),
@@ -26,7 +25,6 @@ const createProjectSchema = z.strictObject({
   name: z.string().trim().min(1).max(120),
   ...dimensionsSchema,
   files: sourceFilesSchema,
-  message: messageSchema,
 });
 const updateProjectSchema = z.strictObject({
   revision: z.number().int().min(1),
@@ -41,10 +39,8 @@ const updateProjectSchema = z.strictObject({
 const saveSourceSchema = z.strictObject({
   revision: z.number().int().min(1),
   files: sourceFilesSchema,
-  message: messageSchema,
 });
 const revisionSchema = z.strictObject({ revision: z.number().int().min(1) });
-const restoreSchema = z.strictObject({ revision: z.number().int().min(1), message: messageSchema });
 const idSchema = z.string().uuid();
 
 export interface ProjectControllerService {
@@ -54,10 +50,8 @@ export interface ProjectControllerService {
   update(userId: string, projectId: string, input: UpdateProjectInput): Promise<unknown>;
   remove(userId: string, projectId: string, revision: number): Promise<void>;
   getSource(userId: string, projectId: string): Promise<unknown>;
+  getPreview(userId: string, projectId: string): Promise<unknown>;
   saveSource(userId: string, projectId: string, input: SaveProjectSourceInput): Promise<unknown>;
-  listVersions(userId: string, projectId: string): Promise<unknown>;
-  getVersion(userId: string, projectId: string, versionId: string): Promise<unknown>;
-  restoreVersion(userId: string, projectId: string, versionId: string, revision: number, message?: string): Promise<unknown>;
 }
 
 export class ProjectController {
@@ -97,29 +91,15 @@ export class ProjectController {
     response.json({ data: await this.projects.getSource(request.principal!.user.id, projectId) });
   };
 
+  getPreview = async (request: AuthenticatedRequest, response: Response) => {
+    const projectId = idSchema.parse(request.params.projectId);
+    response.json({ data: await this.projects.getPreview(request.principal!.user.id, projectId) });
+  };
+
   saveSource = async (request: AuthenticatedRequest, response: Response) => {
     const projectId = idSchema.parse(request.params.projectId);
     const input = saveSourceSchema.parse(request.body) as { revision: number; files: ProjectSourceFiles; message?: string };
     response.json({ data: await this.projects.saveSource(request.principal!.user.id, projectId, input) });
   };
 
-  listVersions = async (request: AuthenticatedRequest, response: Response) => {
-    const projectId = idSchema.parse(request.params.projectId);
-    response.json({ data: await this.projects.listVersions(request.principal!.user.id, projectId) });
-  };
-
-  getVersion = async (request: AuthenticatedRequest, response: Response) => {
-    const projectId = idSchema.parse(request.params.projectId);
-    const versionId = idSchema.parse(request.params.versionId);
-    response.json({ data: await this.projects.getVersion(request.principal!.user.id, projectId, versionId) });
-  };
-
-  restoreVersion = async (request: AuthenticatedRequest, response: Response) => {
-    const projectId = idSchema.parse(request.params.projectId);
-    const versionId = idSchema.parse(request.params.versionId);
-    const input = restoreSchema.parse(request.body);
-    response.status(201).json({
-      data: await this.projects.restoreVersion(request.principal!.user.id, projectId, versionId, input.revision, input.message),
-    });
-  };
 }

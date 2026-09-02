@@ -3,6 +3,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { GeminiModelProvider } from '../../../packages/ai-providers/src/gemini.js';
+import { OpenAICompatibleProvider } from '../../../packages/ai-providers/src/openai-compatible.js';
+import { RoutingProvider } from '../../../packages/ai-providers/src/routing-provider.js';
 import { createDatabase } from '../../../packages/database/src/client.js';
 import { PostgresJobQueue } from '../../../packages/job-queue/src/postgres-queue.js';
 import { DockerSandboxRunner } from '../../../packages/sandbox/src/docker-runner.js';
@@ -16,15 +18,47 @@ import { ObjectStorageAssetStager } from './asset-stager.js';
 
 export async function startGenerationWorker() {
   const environment = parseEnvironment(process.env);
-  if (environment.aiProvider !== 'gemini') throw new Error(`AI provider is not implemented yet: ${environment.aiProvider}`);
-  if (!environment.geminiApiKey) throw new Error('GEMINI_API_KEY is required by the generation worker.');
+  if (environment.aiProvider === 'gemini' && !environment.geminiApiKey) throw new Error('GEMINI_API_KEY is required by the generation worker.');
+  if (environment.aiProvider === 'openai-compatible' && !environment.openAiCompatibleApiKey) throw new Error('OPENAI_COMPATIBLE_API_KEY is required by the generation worker.');
   const logger = createLogger({ nodeEnv: environment.nodeEnv, ...(environment.logLevel ? { logLevel: environment.logLevel } : {}) });
   const { db, pool } = createDatabase(environment.databaseUrl);
   const queue = new PostgresJobQueue(db);
   const store = new DatabaseWorkerGenerationStore(db);
-  const provider = new GeminiModelProvider({ apiKey: environment.geminiApiKey });
+  
+    let primaryProvider: any;
+    if (environment.aiProvider === 'gemini' && environment.geminiApiKey) {
+      primaryProvider = new GeminiModelProvider({
+        apiKey: environment.geminiApiKey,
+        maxTransientRetries: 1,
+      });
+    } else if (environment.aiProvider === 'openai-compatible' && environment.openAiCompatibleApiKey) {
+      primaryProvider = new OpenAICompatibleProvider(
+        environment.openAiCompatibleBaseUrl || 'https://api.tokenrouter.com/v1',
+        environment.openAiCompatibleApiKey,
+      );
+    } else {
+      throw new Error(`AI provider is not configured: ${environment.aiProvider}`);
+    }
+    
+    let secondaryProvider: any;
+    if (environment.aiProvider === 'gemini' && environment.openAiCompatibleApiKey) {
+      secondaryProvider = new OpenAICompatibleProvider(
+        environment.openAiCompatibleBaseUrl || 'https://api.tokenrouter.com/v1',
+        environment.openAiCompatibleApiKey
+      );
+    }
+    
+    const provider = new RoutingProvider(primaryProvider, secondaryProvider);
+  
   const workspaceRoot = path.resolve(environment.generationWorkspaceRoot);
-  const sandbox = new DockerSandboxRunner({ image: environment.sandboxImage, workspaceRoot });
+  
+  let sandbox: any;
+  if (environment.sandboxMode === 'local') {
+    const { LocalProcessSandboxRunner } = await import('../../../packages/sandbox/src/local-runner.js');
+    sandbox = new LocalProcessSandboxRunner({ workspaceRoot });
+  } else {
+    sandbox = new DockerSandboxRunner({ image: environment.sandboxImage, workspaceRoot });
+  }
   const objectStorage = await LocalFilesystemObjectStorage.create(path.resolve(environment.objectStorageLocalRoot));
   const artifactSink = new DatabaseGenerationArtifactSink(db, objectStorage);
   const assetStager = new ObjectStorageAssetStager(objectStorage);
@@ -34,6 +68,7 @@ export async function startGenerationWorker() {
     sandboxTimeoutMs: environment.generationJobTimeoutSeconds * 1_000,
     artifactSink,
     assetStager,
+    sourceOnly: true,
   });
   const workerId = `generation-${randomUUID()}`;
   const shutdown = new AbortController();
@@ -78,7 +113,7 @@ export async function startGenerationWorker() {
       } catch (error) {
         const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'GENERATION_FAILED';
         const interrupted = shutdown.signal.aborted || leaseLost.signal.aborted;
-        const queueStatus = await queue.fail(task.id, workerId, code, interrupted ? new Date() : null);
+        const queueStatus = await queue.fail(task.id, workerId, code, interrupted ? undefined : null);
         if (queueStatus === 'DEAD' && interrupted) {
           await store.fail(task.resourceId, 'WORKER_LEASE_EXHAUSTED', 'Generation stopped after repeated worker interruption.');
         }

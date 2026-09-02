@@ -13,7 +13,6 @@ const user = {
 };
 const workspaceId = '00000000-0000-4000-8000-000000000002';
 const projectId = '00000000-0000-4000-8000-000000000003';
-const versionId = '00000000-0000-4000-8000-000000000004';
 const files = {
   'composition.html': '<main class="scene">Hello</main>',
   'styles.css': '.scene { color: white; }',
@@ -28,15 +27,13 @@ function dependencies() {
     workspaces: {} as never,
     projects: {
       list: vi.fn().mockResolvedValue([]),
-      create: vi.fn().mockResolvedValue({ project: { id: projectId, revision: 1 }, version: { id: versionId, versionNumber: 1 } }),
+      create: vi.fn().mockResolvedValue({ id: projectId, revision: 1 }),
       get: vi.fn().mockResolvedValue({ id: projectId, revision: 1 }),
       update: vi.fn().mockResolvedValue({ id: projectId, revision: 2 }),
       remove: vi.fn(),
-      getSource: vi.fn().mockResolvedValue({ id: versionId, revision: 1, files }),
-      saveSource: vi.fn().mockResolvedValue({ project: { id: projectId, revision: 2 }, version: { versionNumber: 2 } }),
-      listVersions: vi.fn().mockResolvedValue([{ id: versionId, versionNumber: 1 }]),
-      getVersion: vi.fn().mockResolvedValue({ id: versionId, versionNumber: 1, files }),
-      restoreVersion: vi.fn().mockResolvedValue({ project: { id: projectId, revision: 2 }, version: { versionNumber: 2 } }),
+      getSource: vi.fn().mockResolvedValue({ revision: 1, sourceHash: 'hash', savedAt: new Date(), files }),
+      getPreview: vi.fn().mockResolvedValue({ sourceHash: 'hash', bundle: 'export default {};', styles: '' }),
+      saveSource: vi.fn().mockResolvedValue({ project: { id: projectId, revision: 2 }, unchanged: false }),
     },
   };
 }
@@ -75,7 +72,7 @@ describe('Project API', () => {
     expect(deps.projects.saveSource).not.toHaveBeenCalled();
   });
 
-  it('routes project reads, metadata updates, source saves, versions, restores, and deletion', async () => {
+  it('routes project reads, metadata updates, rolling source saves, and deletion', async () => {
     const deps = dependencies();
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
 
@@ -83,15 +80,13 @@ describe('Project API', () => {
     await authenticated(request(app).get(`/v1/projects/${projectId}`)).expect(200);
     await authenticated(request(app).patch(`/v1/projects/${projectId}`)).send({ revision: 1, name: 'Updated' }).expect(200);
     await authenticated(request(app).get(`/v1/projects/${projectId}/source`)).expect(200);
-    await authenticated(request(app).put(`/v1/projects/${projectId}/source`)).send({ revision: 1, files, message: 'First edit' }).expect(200);
-    await authenticated(request(app).get(`/v1/projects/${projectId}/versions`)).expect(200);
-    await authenticated(request(app).get(`/v1/projects/${projectId}/versions/${versionId}`)).expect(200);
-    await authenticated(request(app).post(`/v1/projects/${projectId}/versions/${versionId}/restore`)).send({ revision: 2 }).expect(201);
-    await authenticated(request(app).delete(`/v1/projects/${projectId}`)).send({ revision: 3 }).expect(204);
+    await authenticated(request(app).get(`/v1/projects/${projectId}/preview`)).expect(200);
+    await authenticated(request(app).put(`/v1/projects/${projectId}/source`)).send({ revision: 1, files }).expect(200);
+    await authenticated(request(app).get(`/v1/projects/${projectId}/versions`)).expect(404);
+    await authenticated(request(app).delete(`/v1/projects/${projectId}`)).send({ revision: 2 }).expect(204);
 
-    expect(deps.projects.saveSource).toHaveBeenCalledWith(user.id, projectId, { revision: 1, files, message: 'First edit' });
-    expect(deps.projects.restoreVersion).toHaveBeenCalledWith(user.id, projectId, versionId, 2, undefined);
-    expect(deps.projects.remove).toHaveBeenCalledWith(user.id, projectId, 3);
+    expect(deps.projects.saveSource).toHaveBeenCalledWith(user.id, projectId, { revision: 1, files });
+    expect(deps.projects.remove).toHaveBeenCalledWith(user.id, projectId, 2);
   });
 
   it('returns a stable conflict response for stale revisions', async () => {

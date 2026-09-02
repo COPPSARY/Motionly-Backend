@@ -5,6 +5,7 @@ import { and, count, desc, eq, gt, inArray, isNull, max, sql, sum } from 'drizzl
 import type { Database } from '../../../../packages/database/src/client.js';
 import {
   generationEvents,
+  generationInputFiles,
   generationJobs,
   generationMessages,
   generationOutputFiles,
@@ -12,9 +13,8 @@ import {
   generationThreads,
   assets,
   projectAssets,
+  projectFiles,
   projects,
-  projectVersionFiles,
-  projectVersions,
   queueTasks,
   workspaceMembers,
 } from '../../../../packages/database/src/schema.js';
@@ -23,13 +23,30 @@ import { hashSourceFiles, PROJECT_SOURCE_PATHS, type ProjectSourceFiles } from '
 import { projectSettingsFromValidation } from '../../../../packages/generation-tools/src/validation-report.js';
 import { AppError } from '../errors.js';
 
-function fileRows(versionId: string, files: ProjectSourceFiles) {
+function projectFileRows(projectId: string, files: ProjectSourceFiles) {
   return PROJECT_SOURCE_PATHS.map((path) => ({
-    projectVersionId: versionId,
+    projectId,
     path,
     content: files[path],
     contentHash: createHash('sha256').update(files[path]).digest('hex'),
   }));
+}
+
+function inputFileRows(generationId: string, files: ProjectSourceFiles) {
+  return PROJECT_SOURCE_PATHS.map((path) => ({
+    generationId,
+    path,
+    content: files[path],
+    contentHash: createHash('sha256').update(files[path]).digest('hex'),
+  }));
+}
+
+function toSourceFiles(rows: Array<{ path: string; content: string }>): ProjectSourceFiles {
+  const values = Object.fromEntries(rows.map((row) => [row.path, row.content])) as Partial<ProjectSourceFiles>;
+  for (const path of PROJECT_SOURCE_PATHS) {
+    if (typeof values[path] !== 'string') throw new Error(`Project source snapshot is missing ${path}`);
+  }
+  return values as ProjectSourceFiles;
 }
 
 function slugPart(value: string) {
@@ -52,7 +69,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
       project: {
         id: projects.id,
         workspaceId: projects.workspaceId,
-        currentVersionId: projects.currentVersionId,
+        sourceHash: projects.sourceHash,
         revision: projects.revision,
       },
       role: workspaceMembers.role,
@@ -61,14 +78,6 @@ export class DatabaseGenerationRepository implements GenerationRepository {
       eq(workspaceMembers.userId, userId),
     )).where(and(eq(projects.id, projectId), isNull(projects.archivedAt))).limit(1);
     return access ?? null;
-  }
-
-  async versionBelongsToProject(projectId: string, versionId: string) {
-    const [version] = await this.db.select({ id: projectVersions.id }).from(projectVersions).where(and(
-      eq(projectVersions.projectId, projectId),
-      eq(projectVersions.id, versionId),
-    )).limit(1);
-    return Boolean(version);
   }
 
   async findByIdempotency(userId: string, idempotencyKey: string) {
@@ -96,22 +105,12 @@ export class DatabaseGenerationRepository implements GenerationRepository {
           height: input.request.project.height,
           fps: input.request.project.fps,
           duration: input.request.project.duration,
+          sourceHash: hashSourceFiles(input.starterFiles),
           createdBy: input.userId,
         }).returning();
         if (!project) throw new Error('Unable to create generated project');
 
-        const [version] = await transaction.insert(projectVersions).values({
-          projectId: project.id,
-          versionNumber: 1,
-          sourceHash: hashSourceFiles(input.starterFiles),
-          message: `Starter preset: ${input.request.presetId}`,
-          runtimeVersion: input.defaults.runtimeVersion,
-          skillBundleVersion: input.defaults.skillBundleVersion,
-          createdBy: input.userId,
-        }).returning();
-        if (!version) throw new Error('Unable to create generated project version');
-        await transaction.insert(projectVersionFiles).values(fileRows(version.id, input.starterFiles));
-        await transaction.update(projects).set({ currentVersionId: version.id }).where(eq(projects.id, project.id));
+        await transaction.insert(projectFiles).values(projectFileRows(project.id, input.starterFiles));
 
         return this.insertGeneration(transactionDb, {
           userId: input.userId,
@@ -121,7 +120,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
           intent: 'CREATE',
           prompt: input.request.prompt,
           assetIds: input.request.assetIds,
-          baseVersionId: version.id,
+          baseSourceHash: project.sourceHash,
           baseRevision: project.revision,
           idempotencyKey: input.idempotencyKey,
           defaults: input.defaults,
@@ -148,7 +147,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
           intent: 'EDIT',
           prompt: input.request.prompt,
           assetIds: input.request.assetIds,
-          baseVersionId: input.request.baseVersionId,
+          baseSourceHash: input.request.baseSourceHash,
           baseRevision: input.request.baseRevision,
           idempotencyKey: input.idempotencyKey,
           defaults: input.defaults,
@@ -220,7 +219,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
           intent: 'EDIT',
           prompt: input.prompt,
           assetIds: input.assetIds,
-          baseVersionId: input.baseVersionId,
+          baseSourceHash: input.baseSourceHash,
           baseRevision: input.baseRevision,
           idempotencyKey: input.idempotencyKey,
           defaults: input.defaults,
@@ -239,7 +238,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
     )).orderBy(generationEvents.sequence).limit(500);
   }
 
-  async applyCandidate(generationId: string, userId: string, revision: number) {
+  async applyCandidate(generationId: string, _userId: string, revision: number) {
     return this.db.transaction(async (transaction) => {
       const [job] = await transaction.select().from(generationJobs).where(eq(generationJobs.id, generationId)).for('update').limit(1);
       if (!job || job.status !== 'AWAITING_APPLY') return null;
@@ -252,37 +251,25 @@ export class DatabaseGenerationRepository implements GenerationRepository {
       const projectSettings = projectSettingsFromValidation(output.validationReport);
       const files = await transaction.select().from(generationOutputFiles).where(eq(generationOutputFiles.generationOutputId, output.id));
       if (files.length !== PROJECT_SOURCE_PATHS.length) throw new Error('Generation output source bundle is incomplete.');
-      const [latest] = await transaction.select({ value: max(projectVersions.versionNumber) }).from(projectVersions)
-        .where(eq(projectVersions.projectId, project.id));
-      const [version] = await transaction.insert(projectVersions).values({
-        projectId: project.id,
-        versionNumber: (latest?.value ?? 0) + 1,
-        sourceHash: output.sourceHash,
-        message: 'Apply conflicting cloud AI generation',
-        parentVersionId: project.currentVersionId,
-        runtimeVersion: job.runtimeVersion,
-        skillBundleVersion: job.skillBundleVersion,
-        createdBy: userId,
-      }).returning();
-      if (!version) throw new Error('Unable to apply generated project version.');
-      await transaction.insert(projectVersionFiles).values(files.map((file) => ({
-        projectVersionId: version.id, path: file.path, content: file.content, contentHash: file.contentHash,
-      })));
       const nextRevision = project.revision + 1;
       const now = new Date();
+      await transaction.delete(projectFiles).where(eq(projectFiles.projectId, project.id));
+      await transaction.insert(projectFiles).values(files.map((file) => ({
+        projectId: project.id, path: file.path, content: file.content, contentHash: file.contentHash, updatedAt: now,
+      })));
       await transaction.update(projects).set({
-        currentVersionId: version.id, revision: nextRevision, updatedAt: now, ...projectSettings,
+        sourceHash: output.sourceHash, revision: nextRevision, updatedAt: now, savedAt: now, ...projectSettings,
       }).where(eq(projects.id, project.id));
-      await transaction.update(generationOutputs).set({ publishedVersionId: version.id, publishedAt: now }).where(eq(generationOutputs.id, output.id));
+      await transaction.update(generationOutputs).set({ publishedRevision: nextRevision, publishedAt: now }).where(eq(generationOutputs.id, output.id));
       await transaction.update(generationJobs).set({
-        status: 'COMPLETED', stage: 'COMPLETED', progress: 100, outputVersionId: version.id,
+        status: 'COMPLETED', stage: 'COMPLETED', progress: 100, outputSourceHash: output.sourceHash,
         errorCode: null, errorMessage: null, errorDetails: null, finishedAt: now, updatedAt: now,
       }).where(eq(generationJobs.id, generationId));
       await appendGenerationEvent(transaction as unknown as Database, {
         generationId, type: 'COMPLETED', status: 'COMPLETED', stage: 'COMPLETED', progress: 100,
-        message: 'Conflicting candidate explicitly applied.', data: { outputVersionId: version.id, projectRevision: nextRevision },
+        message: 'Conflicting candidate explicitly applied.', data: { outputSourceHash: output.sourceHash, projectRevision: nextRevision },
       });
-      return { versionId: version.id, revision: nextRevision };
+      return { sourceHash: output.sourceHash, revision: nextRevision };
     });
   }
 
@@ -310,12 +297,20 @@ export class DatabaseGenerationRepository implements GenerationRepository {
     intent: 'CREATE' | 'EDIT';
     prompt: string;
     assetIds: string[];
-    baseVersionId: string;
+    baseSourceHash: string;
     baseRevision: number;
     idempotencyKey: string;
     defaults: Parameters<GenerationRepository['createEditGeneration']>[0]['defaults'];
     retriedFromId?: string;
   }): Promise<GenerationRecord> {
+    const [baseProject] = await db.select({ revision: projects.revision, sourceHash: projects.sourceHash })
+      .from(projects).where(and(eq(projects.id, input.projectId), isNull(projects.archivedAt))).for('update').limit(1);
+    if (!baseProject || baseProject.revision !== input.baseRevision || baseProject.sourceHash !== input.baseSourceHash) {
+      throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.', {
+        currentRevision: baseProject?.revision,
+        currentSourceHash: baseProject?.sourceHash,
+      });
+    }
     let threadId = input.threadId;
     if (threadId) {
       const [thread] = await db.select({ id: generationThreads.id }).from(generationThreads).where(and(
@@ -338,7 +333,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
       threadId,
       createdBy: input.userId,
       intent: input.intent,
-      baseVersionId: input.baseVersionId,
+      baseSourceHash: input.baseSourceHash,
       baseRevision: input.baseRevision,
       provider: input.defaults.provider,
       model: input.defaults.model,
@@ -349,6 +344,14 @@ export class DatabaseGenerationRepository implements GenerationRepository {
       ...(input.retriedFromId ? { retriedFromId: input.retriedFromId } : {}),
     }).returning();
     if (!job) throw new Error('Unable to create generation job');
+
+    const sourceRows = await db.select({ path: projectFiles.path, content: projectFiles.content })
+      .from(projectFiles).where(eq(projectFiles.projectId, input.projectId));
+    const source = toSourceFiles(sourceRows);
+    if (hashSourceFiles(source) !== input.baseSourceHash) {
+      throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.');
+    }
+    await db.insert(generationInputFiles).values(inputFileRows(job.id, source));
 
     await db.insert(generationMessages).values({
       threadId,
@@ -367,7 +370,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
       status: 'QUEUED',
       stage: 'QUEUED',
       progress: 0,
-      message: 'Generation queued.',
+      message: 'Got it — I’m working on that now.',
     });
     await db.insert(queueTasks).values({
       type: 'GENERATION',

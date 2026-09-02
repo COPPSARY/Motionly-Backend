@@ -1,4 +1,4 @@
-import { GoogleGenAI, type Content, type FunctionDeclaration, type GenerateContentResponse, type Part } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, type Content, type FunctionDeclaration, type GenerateContentResponse, type Part } from '@google/genai';
 
 import {
   ModelProviderError,
@@ -81,8 +81,10 @@ export class GeminiModelProvider implements GenerationModelProvider {
           contents: input.messages.map(toGeminiContent),
           config: {
             abortSignal: requestSignal,
+            httpOptions: { timeout: input.limits.timeoutMs },
             systemInstruction: input.systemInstructions,
             maxOutputTokens: input.limits.maxOutputTokens,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
             ...(input.tools.length ? { tools: [{ functionDeclarations: input.tools.map(toFunctionDeclaration) }] } : {}),
           },
         });
@@ -146,10 +148,24 @@ function toGeminiPart(content: ModelContent): Part {
 function normalizeGeminiError(error: unknown, aborted: boolean): ModelProviderError {
   if (aborted) return new ModelProviderError('PROVIDER_TIMEOUT', 'The model request timed out or was cancelled.', true);
   const status = typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : undefined;
-  if (status === 401 || status === 403) return new ModelProviderError('PROVIDER_AUTH_FAILED', 'The model provider rejected its credentials.', false);
+  if (status === 401 || status === 403) return new ModelProviderError('PROVIDER_AUTH_FAILED', 'Gemini rejected the configured API key.', false);
+  if (status === 404) return new ModelProviderError('PROVIDER_MODEL_UNAVAILABLE', providerMessage(error, 'The configured Gemini model is unavailable.'), false);
   if (status === 429) return new ModelProviderError('PROVIDER_RATE_LIMITED', 'The model provider rate limit was reached.', true, retryAfterMs(error));
+  if (status !== undefined && status >= 400 && status < 500) return new ModelProviderError('PROVIDER_ERROR', providerMessage(error, 'Gemini rejected the generation request.'), false);
   if (status !== undefined && status >= 500) return new ModelProviderError('PROVIDER_UNAVAILABLE', 'The model provider is temporarily unavailable.', true);
   return new ModelProviderError('PROVIDER_ERROR', 'The model provider request failed.', false);
+}
+
+function providerMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+  try {
+    const parsed = JSON.parse(error.message) as { error?: { message?: unknown } };
+    const message = parsed.error?.message;
+    if (typeof message === 'string' && message.length <= 1_000) return message;
+  } catch {
+    // The SDK also returns plain-text errors for transport and service failures.
+  }
+  return error.message.length <= 1_000 ? error.message : fallback;
 }
 
 function retryAfterMs(error: unknown): number | undefined {

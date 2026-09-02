@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { AppError } from '../errors.js';
 import type { WorkspaceRole } from './workspace.service.js';
+import { bundleProjectPreview } from './project-preview.service.js';
 
 export const PROJECT_SOURCE_PATHS = ['composition.html', 'styles.css', 'timeline.js', 'index.ts'] as const;
 
@@ -17,25 +18,18 @@ export interface ProjectRecord {
   height: number;
   fps: number;
   duration: number;
-  currentVersionId: string | null;
+  sourceHash: string;
   revision: number;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  savedAt: Date;
   archivedAt: Date | null;
 }
 
-export interface ProjectVersionRecord {
-  id: string;
-  projectId: string;
-  versionNumber: number;
+export interface ProjectSource {
   sourceHash: string;
-  message: string | null;
-  createdBy: string;
-  createdAt: Date;
-}
-
-export interface ProjectSource extends ProjectVersionRecord {
+  savedAt: Date;
   files: ProjectSourceFiles;
 }
 
@@ -46,7 +40,6 @@ export interface CreateProjectInput {
   fps: number;
   duration: number;
   files: ProjectSourceFiles;
-  message?: string;
 }
 
 export interface UpdateProjectInput {
@@ -61,21 +54,17 @@ export interface UpdateProjectInput {
 export interface SaveProjectSourceInput {
   revision: number;
   files: ProjectSourceFiles;
-  message?: string;
 }
 
 export interface ProjectRepository {
   getWorkspaceMembership(workspaceId: string, userId: string): Promise<{ role: WorkspaceRole } | null>;
   getProjectAccess(projectId: string, userId: string): Promise<{ project: ProjectRecord; role: WorkspaceRole } | null>;
   list(workspaceId: string): Promise<ProjectRecord[]>;
-  create(workspaceId: string, userId: string, input: CreateProjectInput, sourceHash: string): Promise<{ project: ProjectRecord; version: ProjectVersionRecord }>;
+  create(workspaceId: string, userId: string, input: CreateProjectInput, sourceHash: string): Promise<ProjectRecord>;
   update(projectId: string, input: UpdateProjectInput): Promise<ProjectRecord | null>;
   archive(projectId: string, revision: number): Promise<boolean>;
   getCurrentSource(projectId: string): Promise<ProjectSource | null>;
-  saveSource(projectId: string, userId: string, input: SaveProjectSourceInput, sourceHash: string): Promise<{ project: ProjectRecord; version: ProjectVersionRecord } | null>;
-  listVersions(projectId: string): Promise<ProjectVersionRecord[]>;
-  getVersion(projectId: string, versionId: string): Promise<ProjectSource | null>;
-  restoreVersion(projectId: string, versionId: string, userId: string, revision: number, message: string | undefined): Promise<{ project: ProjectRecord; version: ProjectVersionRecord } | null>;
+  saveSource(projectId: string, input: SaveProjectSourceInput, sourceHash: string): Promise<{ project: ProjectRecord; unchanged: boolean } | null>;
 }
 
 export class ProjectService {
@@ -115,37 +104,23 @@ export class ProjectService {
   async getSource(userId: string, projectId: string) {
     const access = await this.requireProjectAccess(projectId, userId);
     const source = await this.repository.getCurrentSource(projectId);
-    if (!source) throw new AppError(409, 'PROJECT_SOURCE_MISSING', 'The project does not have a current source version.');
+    if (!source) throw new AppError(409, 'PROJECT_SOURCE_MISSING', 'The project does not have a saved source snapshot.');
     return { ...source, revision: access.project.revision };
+  }
+
+  async getPreview(userId: string, projectId: string) {
+    const source = await this.getSource(userId, projectId);
+    const preview = await bundleProjectPreview(source.files);
+    return {
+      sourceHash: source.sourceHash,
+      ...preview,
+    };
   }
 
   async saveSource(userId: string, projectId: string, input: SaveProjectSourceInput) {
     const access = await this.requireProjectAccess(projectId, userId);
     this.requireWriteAccess(access.role);
-    const result = await this.repository.saveSource(projectId, userId, input, hashSourceFiles(input.files));
-    if (!result) throw await this.revisionConflict(projectId, userId, access.project.revision);
-    return result;
-  }
-
-  async listVersions(userId: string, projectId: string) {
-    await this.requireProjectAccess(projectId, userId);
-    return this.repository.listVersions(projectId);
-  }
-
-  async getVersion(userId: string, projectId: string, versionId: string) {
-    await this.requireProjectAccess(projectId, userId);
-    const version = await this.repository.getVersion(projectId, versionId);
-    if (!version) throw new AppError(404, 'PROJECT_VERSION_NOT_FOUND', 'Project version not found.');
-    return version;
-  }
-
-  async restoreVersion(userId: string, projectId: string, versionId: string, revision: number, message?: string) {
-    const access = await this.requireProjectAccess(projectId, userId);
-    this.requireWriteAccess(access.role);
-    if (!(await this.repository.getVersion(projectId, versionId))) {
-      throw new AppError(404, 'PROJECT_VERSION_NOT_FOUND', 'Project version not found.');
-    }
-    const result = await this.repository.restoreVersion(projectId, versionId, userId, revision, message);
+    const result = await this.repository.saveSource(projectId, input, hashSourceFiles(input.files));
     if (!result) throw await this.revisionConflict(projectId, userId, access.project.revision);
     return result;
   }

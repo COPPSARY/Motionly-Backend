@@ -17,9 +17,7 @@ export function createProjectRoutes(controller: ProjectController) {
   router.patch('/:projectId', requireCsrf, asyncHandler(controller.update));
   router.delete('/:projectId', requireCsrf, asyncHandler(controller.remove));
   router.get('/:projectId/source', asyncHandler(controller.getSource));
+  router.get('/:projectId/preview', asyncHandler(controller.getPreview));
   router.put('/:projectId/source', requireCsrf, asyncHandler(controller.saveSource));
-  router.get('/:projectId/versions', asyncHandler(controller.listVersions));
-  router.get('/:projectId/versions/:versionId', asyncHandler(controller.getVersion));
-  router.post('/:projectId/versions/:versionId/restore', requireCsrf, asyncHandler(controller.restoreVersion));
   return router;
 }

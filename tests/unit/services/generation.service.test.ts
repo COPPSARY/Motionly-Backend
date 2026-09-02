@@ -7,7 +7,7 @@ const ids = {
   user: '00000000-0000-4000-8000-000000000001',
   workspace: '00000000-0000-4000-8000-000000000002',
   project: '00000000-0000-4000-8000-000000000003',
-  version: '00000000-0000-4000-8000-000000000004',
+  sourceHash: 'a'.repeat(64),
   thread: '00000000-0000-4000-8000-000000000005',
   generation: '00000000-0000-4000-8000-000000000006',
 };
@@ -23,9 +23,9 @@ function record(overrides: Partial<GenerationRecord> = {}): GenerationRecord {
     status: 'QUEUED',
     stage: 'QUEUED',
     progress: 0,
-    baseVersionId: ids.version,
+    baseSourceHash: ids.sourceHash,
     baseRevision: 2,
-    outputVersionId: null,
+    outputSourceHash: null,
     provider: 'gemini',
     model: 'gemini-test',
     attemptCount: 0,
@@ -45,10 +45,9 @@ function repository() {
   return {
     getWorkspaceMembership: vi.fn().mockResolvedValue({ role: 'owner' as const }),
     getProjectAccess: vi.fn().mockResolvedValue({
-      project: { id: ids.project, workspaceId: ids.workspace, currentVersionId: ids.version, revision: 2 },
+      project: { id: ids.project, workspaceId: ids.workspace, sourceHash: ids.sourceHash, revision: 2 },
       role: 'editor' as const,
     }),
-    versionBelongsToProject: vi.fn().mockResolvedValue(true),
     findByIdempotency: vi.fn().mockResolvedValue(null),
     createProjectGeneration: vi.fn().mockResolvedValue(record({ intent: 'CREATE', baseRevision: 1 })),
     createEditGeneration: vi.fn().mockResolvedValue(record()),
@@ -58,7 +57,7 @@ function repository() {
     createRetryGeneration: vi.fn().mockResolvedValue(record()),
     getLatestUserMessage: vi.fn().mockResolvedValue({ content: 'Change the title', assetIds: [] }),
     listEvents: vi.fn().mockResolvedValue([]),
-    applyCandidate: vi.fn().mockResolvedValue({ versionId: ids.version, revision: 3 }),
+    applyCandidate: vi.fn().mockResolvedValue({ sourceHash: ids.sourceHash, revision: 3 }),
     countActiveForUser: vi.fn().mockResolvedValue(0),
     summarizeReadyAssets: vi.fn().mockImplementation(async (_workspaceId: string, assetIds: string[]) => ({
       count: new Set(assetIds).size,
@@ -99,7 +98,7 @@ describe('GenerationService', () => {
     const { service: generations } = service(repo);
 
     const result = await generations.edit(ids.user, ids.project, {
-      prompt: 'Change the title', baseVersionId: ids.version, baseRevision: 2, assetIds: [],
+      prompt: 'Change the title', baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: [],
     }, 'same-key');
 
     expect(result.id).toBe(ids.generation);
@@ -110,13 +109,13 @@ describe('GenerationService', () => {
   it('rejects stale edits before enqueueing', async () => {
     const repo = repository();
     repo.getProjectAccess.mockResolvedValue({
-      project: { id: ids.project, workspaceId: ids.workspace, currentVersionId: ids.version, revision: 5 },
+      project: { id: ids.project, workspaceId: ids.workspace, sourceHash: ids.sourceHash, revision: 5 },
       role: 'editor',
     });
     const { service: generations } = service(repo);
 
     await expect(generations.edit(ids.user, ids.project, {
-      prompt: 'Change the title', baseVersionId: ids.version, baseRevision: 2, assetIds: [],
+      prompt: 'Change the title', baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: [],
     }, 'stale-key')).rejects.toMatchObject({ code: 'REVISION_CONFLICT', status: 409 } satisfies Partial<AppError>);
     expect(repo.createEditGeneration).not.toHaveBeenCalled();
   });
@@ -139,7 +138,7 @@ describe('GenerationService', () => {
     repo.countActiveForUser.mockResolvedValue(3);
     const { service: generations } = service(repo);
     await expect(generations.edit(ids.user, ids.project, {
-      prompt: 'Change title', baseVersionId: ids.version, baseRevision: 2, assetIds: [],
+      prompt: 'Change title', baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: [],
     }, 'capacity-key')).rejects.toMatchObject({ code: 'GENERATION_LIMIT_EXCEEDED', status: 429 });
     expect(repo.createEditGeneration).not.toHaveBeenCalled();
   });
@@ -152,10 +151,10 @@ describe('GenerationService', () => {
     });
     const { service: generations } = service(repo);
 
-    await generations.retry(ids.user, ids.generation, { baseVersionId: ids.version, baseRevision: 2 }, 'retry-key');
+    await generations.retry(ids.user, ids.generation, { baseSourceHash: ids.sourceHash, baseRevision: 2 }, 'retry-key');
 
     expect(repo.createRetryGeneration).toHaveBeenCalledWith(expect.objectContaining({
-      baseVersionId: ids.version, baseRevision: 2, assetIds: ['00000000-0000-4000-8000-000000000008'],
+      baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: ['00000000-0000-4000-8000-000000000008'],
     }));
   });
 
@@ -165,7 +164,7 @@ describe('GenerationService', () => {
     const { service: generations } = service(repo);
 
     await expect(generations.edit(ids.user, ids.project, {
-      prompt: 'Use the uploaded video', baseVersionId: ids.version, baseRevision: 2,
+      prompt: 'Use the uploaded video', baseSourceHash: ids.sourceHash, baseRevision: 2,
       assetIds: ['00000000-0000-4000-8000-000000000008'],
     }, 'large-assets')).rejects.toMatchObject({ code: 'ASSET_BUDGET_EXCEEDED', status: 422 });
     expect(repo.createEditGeneration).not.toHaveBeenCalled();

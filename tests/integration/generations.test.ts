@@ -12,7 +12,7 @@ const user = {
 };
 const workspaceId = '00000000-0000-4000-8000-000000000002';
 const projectId = '00000000-0000-4000-8000-000000000003';
-const versionId = '00000000-0000-4000-8000-000000000004';
+const sourceHash = 'a'.repeat(64);
 const generationId = '00000000-0000-4000-8000-000000000006';
 
 function dependencies() {
@@ -28,7 +28,7 @@ function dependencies() {
       get: vi.fn().mockResolvedValue({ id: generationId, projectId, status: 'QUEUED' }),
       cancel: vi.fn().mockResolvedValue({ id: generationId, projectId, status: 'CANCELLING' }),
       retry: vi.fn().mockResolvedValue({ id: generationId, projectId, status: 'QUEUED' }),
-      apply: vi.fn().mockResolvedValue({ outputVersionId: versionId, projectRevision: 2 }),
+      apply: vi.fn().mockResolvedValue({ outputSourceHash: sourceHash, projectRevision: 2 }),
       events: vi.fn().mockResolvedValue({
         events: [{ sequence: 2, type: 'COMPLETED', status: 'COMPLETED' }],
         isTerminal: true,
@@ -52,7 +52,7 @@ describe('Generation API', () => {
     };
     const createResponse = await authenticated(request(app).post(`/v1/workspaces/${workspaceId}/generations`))
       .set('Idempotency-Key', 'create-generation-1').send(createInput);
-    const editInput = { prompt: 'Improve the CTA', baseVersionId: versionId, baseRevision: 1 };
+    const editInput = { prompt: 'Improve the CTA', baseSourceHash: sourceHash, baseRevision: 1 };
     const editResponse = await authenticated(request(app).post(`/v1/projects/${projectId}/generations`))
       .set('Idempotency-Key', 'edit-generation-1').send(editInput);
 
@@ -65,7 +65,7 @@ describe('Generation API', () => {
   it('requires CSRF and an idempotency key for submission', async () => {
     const deps = dependencies();
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
-    const input = { prompt: 'Improve CTA', baseVersionId: versionId, baseRevision: 1 };
+    const input = { prompt: 'Improve CTA', baseSourceHash: sourceHash, baseRevision: 1 };
 
     const noCsrf = await request(app).post(`/v1/projects/${projectId}/generations`)
       .set('Cookie', ['motionly_session=session-token']).set('Idempotency-Key', 'key').send(input);

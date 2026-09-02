@@ -12,7 +12,7 @@ export class PostgresJobQueue implements DurableJobQueue {
       type: input.type,
       resourceId: input.resourceId,
       priority: input.priority ?? 0,
-      availableAt: input.availableAt ?? new Date(),
+      availableAt: input.availableAt ?? sql`now()`,
       maxAttempts: input.maxAttempts ?? 3,
     }).returning();
     if (!task) throw new Error('Unable to enqueue task.');
@@ -24,35 +24,35 @@ export class PostgresJobQueue implements DurableJobQueue {
     const leaseExpiresAt = new Date(Date.now() + leaseMs);
     const result = await this.db.execute(sql`
       with candidate as (
-        select ${queueTasks.id}
-        from ${queueTasks}
-        where ${queueTasks.status} = 'QUEUED'
-          and ${queueTasks.availableAt} <= now()
-        order by ${queueTasks.priority} desc, ${queueTasks.availableAt} asc, ${queueTasks.createdAt} asc
+        select "id"
+        from "queue_tasks"
+        where "status" = 'QUEUED'
+          and "available_at" <= now()
+        order by "priority" desc, "available_at" asc, "created_at" asc
         for update skip locked
         limit 1
       )
-      update ${queueTasks}
-      set ${queueTasks.status} = 'LEASED',
-          ${queueTasks.leaseOwner} = ${workerId},
-          ${queueTasks.leaseExpiresAt} = ${leaseExpiresAt},
-          ${queueTasks.attemptCount} = ${queueTasks.attemptCount} + 1,
-          ${queueTasks.updatedAt} = now()
-      where ${queueTasks.id} in (select ${queueTasks.id} from candidate)
+      update "queue_tasks" as task
+      set "status" = 'LEASED',
+          "lease_owner" = ${workerId},
+          "lease_expires_at" = ${leaseExpiresAt},
+          "attempt_count" = task."attempt_count" + 1,
+          "updated_at" = now()
+      where task."id" in (select candidate."id" from candidate)
       returning
-        ${queueTasks.id} as "id",
-        ${queueTasks.type} as "type",
-        ${queueTasks.status} as "status",
-        ${queueTasks.resourceId} as "resourceId",
-        ${queueTasks.priority} as "priority",
-        ${queueTasks.availableAt} as "availableAt",
-        ${queueTasks.leaseOwner} as "leaseOwner",
-        ${queueTasks.leaseExpiresAt} as "leaseExpiresAt",
-        ${queueTasks.attemptCount} as "attemptCount",
-        ${queueTasks.maxAttempts} as "maxAttempts",
-        ${queueTasks.lastErrorCode} as "lastErrorCode",
-        ${queueTasks.createdAt} as "createdAt",
-        ${queueTasks.updatedAt} as "updatedAt"
+        task."id" as "id",
+        task."type" as "type",
+        task."status" as "status",
+        task."resource_id" as "resourceId",
+        task."priority" as "priority",
+        task."available_at" as "availableAt",
+        task."lease_owner" as "leaseOwner",
+        task."lease_expires_at" as "leaseExpiresAt",
+        task."attempt_count" as "attemptCount",
+        task."max_attempts" as "maxAttempts",
+        task."last_error_code" as "lastErrorCode",
+        task."created_at" as "createdAt",
+        task."updated_at" as "updatedAt"
     `);
     return (result.rows[0] as QueueTask | undefined) ?? null;
   }
@@ -84,7 +84,7 @@ export class PostgresJobQueue implements DurableJobQueue {
     return Boolean(task);
   }
 
-  async fail(taskId: string, workerId: string, errorCode: string, retryAt: Date | null = new Date()): Promise<QueueTaskStatus | null> {
+  async fail(taskId: string, workerId: string, errorCode: string, retryAt?: Date | null): Promise<QueueTaskStatus | null> {
     return this.db.transaction(async (transaction) => {
       const [current] = await transaction.select().from(queueTasks).where(and(
         eq(queueTasks.id, taskId),
@@ -95,7 +95,7 @@ export class PostgresJobQueue implements DurableJobQueue {
       const status: QueueTaskStatus = retryAt === null || current.attemptCount >= current.maxAttempts ? 'DEAD' : 'QUEUED';
       await transaction.update(queueTasks).set({
         status,
-        ...(retryAt ? { availableAt: retryAt } : {}),
+        ...(status === 'QUEUED' ? { availableAt: retryAt ?? sql`now()` } : {}),
         leaseOwner: null,
         leaseExpiresAt: null,
         lastErrorCode: errorCode,

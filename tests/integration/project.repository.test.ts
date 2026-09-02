@@ -1,17 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
-import { TransactionRollbackError } from 'drizzle-orm';
+import { eq, TransactionRollbackError } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
 import { DatabaseProjectRepository } from '../../apps/api/src/repositories/project.repository.js';
-import type { ProjectSourceFiles } from '../../apps/api/src/services/project.service.js';
+import { hashSourceFiles, type ProjectSourceFiles } from '../../apps/api/src/services/project.service.js';
 import { createDatabase, type Database } from '../../packages/database/src/client.js';
-import { users, workspaceMembers, workspaces } from '../../packages/database/src/schema.js';
+import { projectFiles, users, workspaceMembers, workspaces } from '../../packages/database/src/schema.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 
 describe.skipIf(!databaseUrl)('DatabaseProjectRepository', () => {
-  it('persists, versions, restores, and archives a four-file project atomically', async () => {
+  it('replaces one rolling four-file snapshot atomically and skips unchanged saves', async () => {
     if (!databaseUrl) return;
     const { db, pool } = createDatabase(databaseUrl);
     const suffix = randomUUID();
@@ -33,30 +33,31 @@ describe.skipIf(!databaseUrl)('DatabaseProjectRepository', () => {
         const repository = new DatabaseProjectRepository(transaction as unknown as Database);
         const created = await repository.create(workspaceId, userId, {
           name: 'Launch Film', width: 1920, height: 1080, fps: 60, duration: 30, files,
-        }, 'initial-source-hash');
-        expect(created.project.revision).toBe(1);
-        expect(created.version.versionNumber).toBe(1);
-        await expect(repository.getCurrentSource(created.project.id)).resolves.toMatchObject({ files });
+        }, hashSourceFiles(files));
+        expect(created.revision).toBe(1);
+        await expect(repository.getCurrentSource(created.id)).resolves.toMatchObject({ files });
 
         const updatedFiles = { ...files, 'composition.html': '<main>Version two</main>' };
-        const saved = await repository.saveSource(created.project.id, userId, {
+        const updatedHash = hashSourceFiles(updatedFiles);
+        const saved = await repository.saveSource(created.id, {
           revision: 1,
           files: updatedFiles,
-          message: 'Second version',
-        }, 'second-source-hash');
+        }, updatedHash);
         expect(saved?.project.revision).toBe(2);
-        expect(saved?.version.versionNumber).toBe(2);
-        await expect(repository.saveSource(created.project.id, userId, { revision: 1, files }, 'stale-hash')).resolves.toBeNull();
+        expect(saved?.unchanged).toBe(false);
+        await expect(repository.getCurrentSource(created.id)).resolves.toMatchObject({
+          sourceHash: updatedHash,
+          files: updatedFiles,
+        });
 
-        const versions = await repository.listVersions(created.project.id);
-        expect(versions.map((version) => version.versionNumber)).toEqual([2, 1]);
-        const restored = await repository.restoreVersion(created.project.id, created.version.id, userId, 2, undefined);
-        expect(restored?.project.revision).toBe(3);
-        expect(restored?.version).toMatchObject({ versionNumber: 3, sourceHash: 'initial-source-hash' });
-        await expect(repository.getCurrentSource(created.project.id)).resolves.toMatchObject({ files });
+        const unchanged = await repository.saveSource(created.id, { revision: 2, files: updatedFiles }, updatedHash);
+        expect(unchanged).toMatchObject({ project: { revision: 2 }, unchanged: true });
+        await expect(repository.saveSource(created.id, { revision: 1, files }, hashSourceFiles(files))).resolves.toBeNull();
+        const storedFiles = await transaction.select().from(projectFiles).where(eq(projectFiles.projectId, created.id));
+        expect(storedFiles).toHaveLength(4);
 
-        await expect(repository.archive(created.project.id, 3)).resolves.toBe(true);
-        await expect(repository.getProjectAccess(created.project.id, userId)).resolves.toBeNull();
+        await expect(repository.archive(created.id, 2)).resolves.toBe(true);
+        await expect(repository.getProjectAccess(created.id, userId)).resolves.toBeNull();
         await expect(repository.list(workspaceId)).resolves.toEqual([]);
         transaction.rollback();
       })).rejects.toBeInstanceOf(TransactionRollbackError);

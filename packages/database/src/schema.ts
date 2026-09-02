@@ -100,11 +100,12 @@ export const projects = pgTable('projects', {
   height: integer('height').notNull(),
   fps: integer('fps').notNull(),
   duration: doublePrecision('duration').notNull(),
-  currentVersionId: uuid('current_version_id').references((): AnyPgColumn => projectVersions.id, { onDelete: 'restrict' }),
+  sourceHash: text('source_hash').notNull(),
   revision: integer('revision').default(1).notNull(),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  savedAt: timestamp('saved_at', { withTimezone: true }).defaultNow().notNull(),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
 }, (table) => [
   uniqueIndex('projects_workspace_slug_unique').on(table.workspaceId, table.slug),
@@ -116,31 +117,15 @@ export const projects = pgTable('projects', {
   check('projects_revision_check', sql`${table.revision} >= 1`),
 ]);
 
-export const projectVersions = pgTable('project_versions', {
-  id: uuid('id').defaultRandom().primaryKey(),
+export const projectFiles = pgTable('project_files', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  versionNumber: integer('version_number').notNull(),
-  sourceHash: text('source_hash').notNull(),
-  message: text('message'),
-  parentVersionId: uuid('parent_version_id').references((): AnyPgColumn => projectVersions.id, { onDelete: 'set null' }),
-  runtimeVersion: text('runtime_version'),
-  skillBundleVersion: text('skill_bundle_version'),
-  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  uniqueIndex('project_versions_project_number_unique').on(table.projectId, table.versionNumber),
-  index('project_versions_project_created_idx').on(table.projectId, table.createdAt),
-  check('project_versions_number_check', sql`${table.versionNumber} >= 1`),
-]);
-
-export const projectVersionFiles = pgTable('project_version_files', {
-  projectVersionId: uuid('project_version_id').notNull().references(() => projectVersions.id, { onDelete: 'cascade' }),
   path: text('path').notNull(),
   content: text('content').notNull(),
   contentHash: text('content_hash').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  primaryKey({ columns: [table.projectVersionId, table.path] }),
-  check('project_version_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
+  primaryKey({ columns: [table.projectId, table.path] }),
+  check('project_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
 ]);
 
 export const authSessions = pgTable('auth_sessions', {
@@ -181,9 +166,9 @@ export const generationJobs = pgTable('generation_jobs', {
   status: generationStatus('status').default('QUEUED').notNull(),
   stage: text('stage').default('QUEUED').notNull(),
   progress: integer('progress').default(0).notNull(),
-  baseVersionId: uuid('base_version_id').notNull().references(() => projectVersions.id, { onDelete: 'restrict' }),
+  baseSourceHash: text('base_source_hash').notNull(),
   baseRevision: integer('base_revision').notNull(),
-  outputVersionId: uuid('output_version_id').references(() => projectVersions.id, { onDelete: 'set null' }),
+  outputSourceHash: text('output_source_hash'),
   retriedFromId: uuid('retried_from_id').references((): AnyPgColumn => generationJobs.id, { onDelete: 'set null' }),
   provider: modelProvider('provider').notNull(),
   model: text('model').notNull(),
@@ -208,6 +193,16 @@ export const generationJobs = pgTable('generation_jobs', {
   check('generation_jobs_progress_check', sql`${table.progress} between 0 and 100`),
   check('generation_jobs_base_revision_check', sql`${table.baseRevision} >= 1`),
   check('generation_jobs_attempts_check', sql`${table.attemptCount} >= 0 and ${table.maxAttempts} >= 1`),
+]);
+
+export const generationInputFiles = pgTable('generation_input_files', {
+  generationId: uuid('generation_id').notNull().references(() => generationJobs.id, { onDelete: 'cascade' }),
+  path: text('path').notNull(),
+  content: text('content').notNull(),
+  contentHash: text('content_hash').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.generationId, table.path] }),
+  check('generation_input_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
 ]);
 
 export const generationMessages = pgTable('generation_messages', {
@@ -278,7 +273,7 @@ export const generationOutputs = pgTable('generation_outputs', {
   generationId: uuid('generation_id').notNull().unique().references(() => generationJobs.id, { onDelete: 'cascade' }),
   sourceHash: text('source_hash').notNull(),
   validationReport: jsonb('validation_report').$type<Record<string, unknown>>().notNull(),
-  publishedVersionId: uuid('published_version_id').references(() => projectVersions.id, { onDelete: 'set null' }),
+  publishedRevision: integer('published_revision'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   publishedAt: timestamp('published_at', { withTimezone: true }),
 });

@@ -12,7 +12,7 @@ The implementation has progressed through the local V1 vertical slice: contracts
 
 | Gate | Status |
 |---|---|
-| Static typecheck, automated tests, production build | Passing locally: 112 tests passed, 3 environment-dependent tests skipped |
+| Static typecheck, automated tests, production build | Passing locally: 121 tests passed, 3 environment-dependent tests skipped |
 | Real local Chromium mount and representative PNG capture | Passing locally |
 | Real FFmpeg encode/FFprobe metadata and pre-encoding parity | Test implemented; pending Docker image or local FFmpeg installation |
 | Deterministic structural/adversarial eval | Passing locally: 8/8 cases |

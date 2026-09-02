@@ -87,18 +87,12 @@ describe('GenerationCoordinator', () => {
     const provider = new FakeModelProvider([
       [
         { type: 'tool_call', id: 'edit-1', name: 'apply_project_patch', arguments: {
-          path: 'composition.html', edits: [{ search: 'Make your product move.', replace: 'Ship your product story.' }],
+          path: 'composition.html', edits: [{ search: '<main class="motionly-stage" data-edit="stage"></main>', replace: '<main class="motionly-stage" data-edit="stage">Changed</main>' }],
         } },
         { type: 'usage', inputTokens: 100, outputTokens: 20, totalTokens: 120 },
         { type: 'completed', finishReason: 'TOOL_CALL' },
       ],
       [
-        { type: 'tool_call', id: 'submit-1', name: 'submit_candidate', arguments: {} },
-        { type: 'completed', finishReason: 'TOOL_CALL' },
-      ],
-      [
-        { type: 'text', text: 'The representative frames are publication quality.' },
-        { type: 'usage', inputTokens: 50, outputTokens: 10, totalTokens: 60 },
         { type: 'completed', finishReason: 'STOP' },
       ],
     ]);
@@ -111,7 +105,7 @@ describe('GenerationCoordinator', () => {
 
     expect(store.saveOutput).toHaveBeenCalledWith(
       context().job.id,
-      expect.objectContaining({ 'composition.html': expect.stringContaining('Ship your product story.') }),
+      expect.objectContaining({ 'composition.html': expect.stringContaining('Changed</main>') }),
       expect.any(Object),
     );
     expect(store.publish).toHaveBeenCalledWith(context().job.id, context().job.createdBy);
@@ -120,11 +114,11 @@ describe('GenerationCoordinator', () => {
       status: 'SUCCEEDED',
       inputSummary: expect.objectContaining({ path: 'composition.html', editCount: 1 }),
     }));
-    expect(JSON.stringify(vi.mocked(store.recordToolCall).mock.calls)).not.toContain('Ship your product story.');
+    expect(JSON.stringify(vi.mocked(store.recordToolCall).mock.calls)).not.toContain('Changed</main>');
     expect(transitions.map((transition) => transition.status)).toEqual(expect.arrayContaining([
-      'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'PUBLISHING',
+      'PREPARING', 'GENERATING', 'VALIDATING', 'PUBLISHING',
     ]));
-    expect(sandbox.run).toHaveBeenCalledWith(expect.objectContaining({ operation: 'export' }));
+    expect(sandbox.run).toHaveBeenCalledWith(expect.objectContaining({ operation: 'validate' }));
     expect(await readdir(workspaceRoot)).toEqual([]);
   });
 
@@ -252,77 +246,23 @@ describe('GenerationCoordinator', () => {
     expect(JSON.stringify(vi.mocked(store.recordToolCall).mock.calls)).not.toContain('secret');
   });
 
-  it('blocks publication when the renderer does not prove preview export parity', async () => {
-    const jobContext = context();
-    jobContext.job.maxAttempts = 1;
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-export-'));
+
+  it('publishes immediately if the AI returns no tool calls', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-fail-'));
     temporaryDirectories.push(workspaceRoot);
+    const { store } = fakeStore();
     const provider = new FakeModelProvider([
-      [{ type: 'tool_call', id: 'submit-1', name: 'submit_candidate', arguments: {} }, { type: 'completed', finishReason: 'TOOL_CALL' }],
+      [{ type: 'completed', finishReason: 'STOP' }],
     ]);
-    const incompleteExport: SandboxRunner = {
-      run: vi.fn(async (request) => ({
-        operation: request.operation,
-        stdout: JSON.stringify({ ok: true, runtimeVersion: '2.0.0', runtime: { registeredIds: ['title'], stateChanged: true }, frames: [], video: null }),
-        stderr: '', durationMs: 10,
-      })),
-    };
-    const { store } = fakeStore(jobContext);
-    const coordinator = new GenerationCoordinator(store, provider, incompleteExport, {
-      workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000,
-    });
-
-    await expect(coordinator.run(jobContext.job.id, new AbortController().signal)).rejects.toMatchObject({ code: 'EXPORT_FAILED' });
-    expect(store.completeAttempt).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ finishReason: 'EXPORT_FAILED' }));
-    expect(store.publish).not.toHaveBeenCalled();
-  });
-
-  it('repairs a browser frame-capture failure before publication', async () => {
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-capture-repair-'));
-    temporaryDirectories.push(workspaceRoot);
-    const provider = new FakeModelProvider([
-      [{ type: 'tool_call', id: 'submit-1', name: 'submit_candidate', arguments: {} }, { type: 'completed', finishReason: 'TOOL_CALL' }],
-      [{ type: 'tool_call', id: 'submit-2', name: 'submit_candidate', arguments: {} }, { type: 'completed', finishReason: 'TOOL_CALL' }],
-      [{ type: 'text', text: 'Approved.' }, { type: 'completed', finishReason: 'STOP' }],
-    ]);
-    let captureCalls = 0;
-    const repairableSandbox: SandboxRunner = {
-      run: vi.fn(async (request) => {
-        if (request.operation === 'capture' && ++captureCalls === 1) throw new Error('Chromium capture failed.');
-        return sandbox.run(request);
-      }),
-    };
-    const { store, transitions } = fakeStore();
-    const coordinator = new GenerationCoordinator(store, provider, repairableSandbox, {
-      workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000,
-    });
-
-    await coordinator.run(context().job.id, new AbortController().signal);
-
-    expect(store.completeAttempt).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ finishReason: 'CAPTURE_FAILED' }));
-    expect(transitions).toContainEqual(expect.objectContaining({ status: 'REPAIRING', stage: 'REPAIRING_CAPTURE' }));
-    expect(store.publish).toHaveBeenCalled();
-    expect(captureCalls).toBe(2);
-  });
-
-  it('repairs a source candidate that was not submitted', async () => {
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-source-repair-'));
-    temporaryDirectories.push(workspaceRoot);
-    const provider = new FakeModelProvider([
-      [{ type: 'text', text: 'I need another pass.' }, { type: 'completed', finishReason: 'STOP' }],
-      [{ type: 'tool_call', id: 'submit-2', name: 'submit_candidate', arguments: {} }, { type: 'completed', finishReason: 'TOOL_CALL' }],
-      [{ type: 'text', text: 'Approved.' }, { type: 'completed', finishReason: 'STOP' }],
-    ]);
-    const { store, transitions } = fakeStore();
     const coordinator = new GenerationCoordinator(store, provider, sandbox, {
       workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000,
     });
 
     await coordinator.run(context().job.id, new AbortController().signal);
 
-    expect(transitions).toContainEqual(expect.objectContaining({ status: 'REPAIRING', stage: 'REPAIRING_SOURCE' }));
     expect(store.publish).toHaveBeenCalled();
   });
+
 
   it('bounds long-lived thread history while preserving the newest request', async () => {
     const jobContext = context();
@@ -334,7 +274,12 @@ describe('GenerationCoordinator', () => {
       createdAt: new Date(index),
     }));
     const provider = new FakeModelProvider([
-      [{ type: 'tool_call', id: 'submit-1', name: 'submit_candidate', arguments: {} }, { type: 'completed', finishReason: 'TOOL_CALL' }],
+      [
+        { type: 'tool_call', id: 'edit-1', name: 'apply_project_patch', arguments: {
+          path: 'composition.html', edits: [{ search: '<main class="motionly-stage" data-edit="stage"></main>', replace: '<main class="motionly-stage" data-edit="stage">Changed</main>' }],
+        } },
+        { type: 'completed', finishReason: 'TOOL_CALL' },
+      ],
       [{ type: 'text', text: 'Approved.' }, { type: 'completed', finishReason: 'STOP' }],
     ]);
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-history-'));
@@ -351,6 +296,6 @@ describe('GenerationCoordinator', () => {
       .map((item) => item.text).join('\n');
     expect(sentText).toContain('NEWEST_REQUEST');
     expect(sentText).not.toContain('history-0');
-    expect(sentText.length).toBeLessThan(61_000);
+    expect(sentText.length).toBeLessThan(65_000);
   });
 });

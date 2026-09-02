@@ -39,9 +39,11 @@ export function isTerminalGenerationStatus(status: GenerationStatus): boolean {
 const legalTransitions: Readonly<Record<GenerationStatus, ReadonlySet<GenerationStatus>>> = {
   QUEUED: new Set(['PREPARING', 'CANCELLING', 'CANCELLED', 'FAILED']),
   PREPARING: new Set(['GENERATING', 'CANCELLING', 'FAILED']),
-  GENERATING: new Set(['PREPARING', 'VALIDATING', 'REPAIRING', 'CANCELLING', 'FAILED']),
-  VALIDATING: new Set(['PREPARING', 'RENDERING', 'REPAIRING', 'CANCELLING', 'FAILED']),
-  RENDERING: new Set(['PREPARING', 'REVIEWING', 'REPAIRING', 'CANCELLING', 'FAILED']),
+  // Source-only generations skip the expensive build/render/review stages and
+  // publish immediately after the model submits a validated source edit.
+  GENERATING: new Set(['PREPARING', 'VALIDATING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'FAILED']),
+  VALIDATING: new Set(['PREPARING', 'RENDERING', 'PUBLISHING', 'REPAIRING', 'CANCELLING', 'FAILED']),
+  RENDERING: new Set(['PREPARING', 'PUBLISHING', 'REVIEWING', 'REPAIRING', 'CANCELLING', 'FAILED']),
   REVIEWING: new Set(['PREPARING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'FAILED']),
   REPAIRING: new Set(['PREPARING', 'GENERATING', 'VALIDATING', 'CANCELLING', 'FAILED']),
   PUBLISHING: new Set(['PREPARING', 'COMPLETED', 'AWAITING_APPLY', 'CANCELLING', 'FAILED']),
@@ -91,6 +93,7 @@ const projectSettingsSchema = z.strictObject({
 });
 
 const promptSchema = z.string().trim().min(1).max(20_000);
+const sourceHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const assetIdsSchema = z.array(z.string().uuid()).max(50).default([]);
 
 export const createGenerationRequestSchema = z.strictObject({
@@ -98,24 +101,28 @@ export const createGenerationRequestSchema = z.strictObject({
   project: projectSettingsSchema,
   presetId: z.string().trim().min(1).max(120).default('motionly-product-promo'),
   assetIds: assetIdsSchema,
+  provider: modelProviderSchema.optional(),
+  model: z.string().min(1).optional(),
 });
 export type CreateGenerationRequest = z.infer<typeof createGenerationRequestSchema>;
 
 export const editGenerationRequestSchema = z.strictObject({
   prompt: promptSchema,
-  baseVersionId: z.string().uuid(),
+  baseSourceHash: sourceHashSchema,
   baseRevision: z.number().int().min(1),
   threadId: z.string().uuid().optional(),
   assetIds: assetIdsSchema,
+  provider: modelProviderSchema.optional(),
+  model: z.string().min(1).optional(),
 });
 export type EditGenerationRequest = z.infer<typeof editGenerationRequestSchema>;
 
 export const retryGenerationRequestSchema = z.strictObject({
-  baseVersionId: z.string().uuid().optional(),
+  baseSourceHash: sourceHashSchema.optional(),
   baseRevision: z.number().int().min(1).optional(),
 }).superRefine((request, context) => {
-  if ((request.baseVersionId === undefined) !== (request.baseRevision === undefined)) {
-    context.addIssue({ code: 'custom', message: 'baseVersionId and baseRevision must be provided together.' });
+  if ((request.baseSourceHash === undefined) !== (request.baseRevision === undefined)) {
+    context.addIssue({ code: 'custom', message: 'baseSourceHash and baseRevision must be provided together.' });
   }
 });
 export type RetryGenerationRequest = z.infer<typeof retryGenerationRequestSchema>;
@@ -145,9 +152,9 @@ export const generationResourceSchema = z.strictObject({
   status: generationStatusSchema,
   stage: z.string().min(1).max(80),
   progress: z.number().int().min(0).max(100),
-  baseVersionId: z.string().uuid(),
+  baseSourceHash: sourceHashSchema,
   baseRevision: z.number().int().min(1),
-  outputVersionId: z.string().uuid().nullable(),
+  outputSourceHash: sourceHashSchema.nullable(),
   provider: modelProviderSchema,
   model: z.string().min(1).max(200),
   attempt: z.number().int().min(0),

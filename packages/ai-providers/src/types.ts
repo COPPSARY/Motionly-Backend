@@ -19,6 +19,7 @@ export interface ModelMessage {
 
 export interface ModelTurnInput {
   model: string;
+  provider?: string;
   systemInstructions: string;
   messages: ModelMessage[];
   tools: ModelToolDefinition[];
@@ -36,6 +37,7 @@ export type ProviderErrorCode =
   | 'PROVIDER_TIMEOUT'
   | 'PROVIDER_UNAVAILABLE'
   | 'PROVIDER_OUTPUT_INVALID'
+  | 'PROVIDER_MODEL_UNAVAILABLE'
   | 'PROVIDER_AUTH_FAILED'
   | 'PROVIDER_ERROR';
 

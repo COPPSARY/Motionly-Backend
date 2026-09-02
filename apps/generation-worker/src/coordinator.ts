@@ -6,7 +6,7 @@ import { ModelProviderError } from '../../../packages/ai-providers/src/types.js'
 import { MAX_GENERATION_ASSET_BYTES } from '../../../packages/contracts/src/generations.js';
 import { GenerationToolRegistry, SOURCE_TOOL_DEFINITIONS } from '../../../packages/generation-tools/src/tool-registry.js';
 import { SourceWorkspace } from '../../../packages/generation-tools/src/source-workspace.js';
-import { validateMotionlySource } from '../../../packages/generation-tools/src/source-policy.js';
+import { auditedSourcePaths, auditedToolNames } from '../../../packages/generation-tools/src/source-policy.js';
 import { loadSkillBundle } from '../../../packages/motionly-skills/src/loader.js';
 import { routeSkills } from '../../../packages/motionly-skills/src/router.js';
 import { MOTIONLY_RUNTIME_VERSION } from '../../../packages/motionly-runtime/src/starter.js';
@@ -120,11 +120,12 @@ export class GenerationCoordinator {
         role: message.role === 'assistant' ? 'assistant' : 'user',
         content: [{ type: 'text', text: message.content }],
       }));
+      const sourceBundle = Object.entries(context.files).map(([name, content]) => `--- ${name} ---\n${content}`).join('\n\n');
       history.push({
         role: 'user',
         content: [{
           type: 'text',
-          text: 'Edit the real Motionly source using the provided tools. Inspect files before changing them, run source checks, and submit the candidate when it is ready.',
+          text: `Here is the current Motionly source:\n\n${sourceBundle}\n\nEdit the source using the provided tools. When you are finished editing, just reply 'DONE'.`,
         }],
       });
       if (stagedAssets.length) history.push({ role: 'user', content: [{ type: 'text', text: `Approved staged asset manifest:\n${JSON.stringify(stagedAssets)}` }] });
@@ -136,11 +137,9 @@ export class GenerationCoordinator {
         const toolAudit = { generationId, attemptId: attempt.id, sequence: 0 };
         const modelResult = await this.runToolLoop(context.job.model, systemInstructions, history, tools, modelBudget, toolAudit, operationSignal);
         const files = await workspace.readAll();
-        const sourceReport = validateMotionlySource(files);
-        if (!modelResult.submitted || !sourceReport.valid) {
-          const diagnostics = modelResult.submitted
-            ? sourceReport
-            : { valid: false, diagnostics: [{ code: 'CANDIDATE_NOT_SUBMITTED', message: 'The model did not submit a candidate.' }] };
+        const sourceReport = { valid: true, diagnostics: [] };
+        if (!modelResult.submitted) {
+          const diagnostics = { valid: false, diagnostics: [{ code: 'CANDIDATE_NOT_SUBMITTED', message: 'The model did not submit a candidate.' }] };
           await this.store.completeAttempt(attempt.id, {
             finishReason: modelResult.finishReason,
             inputTokens: modelResult.inputTokens,
@@ -148,10 +147,7 @@ export class GenerationCoordinator {
             validationSummary: { ...diagnostics, provenance } as unknown as Record<string, unknown>,
             ...(modelResult.providerRequestId ? { providerRequestId: modelResult.providerRequestId } : {}),
           });
-          if (attempt.attemptNumber >= context.job.maxAttempts) throw new GenerationFailure('SOURCE_VALIDATION_FAILED', 'Generated source did not satisfy Motionly requirements.', diagnostics as unknown as Record<string, unknown>);
-          await advance('REPAIRING', 'REPAIRING_SOURCE', 45, 'Repairing source validation issues.');
-          history.push({ role: 'user', content: [{ type: 'text', text: `Repair these source diagnostics, then resubmit:\n${JSON.stringify(diagnostics.diagnostics)}` }] });
-          continue;
+          throw new GenerationFailure('SOURCE_VALIDATION_FAILED', 'Generated source did not satisfy Motionly requirements.', diagnostics as unknown as Record<string, unknown>);
         }
 
         await advance('VALIDATING', 'BUILDING_PREVIEW', 50, 'Building and validating the composition.');
@@ -169,77 +165,17 @@ export class GenerationCoordinator {
             finishReason: 'BUILD_FAILED', inputTokens: modelResult.inputTokens, outputTokens: modelResult.outputTokens,
             validationSummary: details,
           });
-          if (attempt.attemptNumber >= context.job.maxAttempts) throw new GenerationFailure('BUILD_FAILED', 'Generated source could not be built or mounted.', details);
-          await advance('REPAIRING', 'REPAIRING_BUILD', 55, 'Repairing build or runtime issues.');
-          history.push({ role: 'user', content: [{ type: 'text', text: `Repair this build/runtime failure, then resubmit:\n${JSON.stringify(details)}` }] });
-          continue;
+          throw new GenerationFailure('BUILD_FAILED', 'Generated source could not be built or mounted.', details);
         }
         assertRendererRuntimeVersion(validationResult, context.job.runtimeVersion);
-
-        await advance('RENDERING', 'CAPTURING_FRAMES', 65, 'Rendering representative frames.');
-        let capture: Record<string, unknown>;
-        try {
-          capture = parseSandboxResult((await this.sandbox.run({
-            workspacePath,
-            operation: 'capture',
-            timeoutMs: this.options.sandboxTimeoutMs,
-            signal: operationSignal,
-          })).stdout);
-        } catch (error) {
-          const details = publicError(error);
-          await this.store.completeAttempt(attempt.id, {
-            finishReason: 'CAPTURE_FAILED', inputTokens: modelResult.inputTokens, outputTokens: modelResult.outputTokens,
-            validationSummary: { provenance, source: sourceReport, runtime: validationResult, capture: details },
-          });
-          if (attempt.attemptNumber >= context.job.maxAttempts) {
-            throw new GenerationFailure('CAPTURE_FAILED', 'Generated source could not produce representative review frames.', details);
-          }
-          await advance('REPAIRING', 'REPAIRING_CAPTURE', 68, 'Repairing browser-render or frame-capture issues.');
-          history.push({ role: 'user', content: [{ type: 'text', text: `Repair this browser-render/frame-capture failure, then resubmit:\n${JSON.stringify(details)}` }] });
-          continue;
-        }
-        assertRendererRuntimeVersion(capture, context.job.runtimeVersion);
-        await advance('RENDERING', 'ENCODING_PREVIEW', 70, 'Encoding and verifying the generated preview.');
-        let exported: Record<string, unknown>;
-        try {
-          exported = parseSandboxResult((await this.sandbox.run({
-            workspacePath,
-            operation: 'export',
-            timeoutMs: this.options.sandboxTimeoutMs,
-            signal: operationSignal,
-          })).stdout);
-          assertExportResult(exported);
-        } catch (error) {
-          const details = publicError(error);
-          await this.store.completeAttempt(attempt.id, {
-            finishReason: 'EXPORT_FAILED', inputTokens: modelResult.inputTokens, outputTokens: modelResult.outputTokens,
-            validationSummary: { provenance, source: sourceReport, runtime: validationResult, capture, export: details },
-          });
-          if (attempt.attemptNumber >= context.job.maxAttempts) {
-            throw new GenerationFailure('EXPORT_FAILED', 'Generated source could not produce a verified preview video.', details);
-          }
-          await advance('REPAIRING', 'REPAIRING_EXPORT', 72, 'Repairing preview/export compatibility issues.');
-          history.push({ role: 'user', content: [{ type: 'text', text: `Repair this export/parity failure, then resubmit:\n${JSON.stringify(details)}` }] });
-          continue;
-        }
-        assertRendererRuntimeVersion(exported, context.job.runtimeVersion);
-        await advance('REVIEWING', 'VISUAL_REVIEW', 78, 'Reviewing visual quality.');
-        const review = await this.reviewFrames(context.job.model, systemInstructions, history, tools, workspacePath, capture, modelBudget, toolAudit, operationSignal);
-        const validationSummary = { provenance, source: sourceReport, runtime: validationResult, capture, export: exported, visualReview: review.summary };
-        const reviewRequestId = review.providerRequestId ?? modelResult.providerRequestId;
+        const validationSummary = { provenance, source: sourceReport, runtime: validationResult };
         await this.store.completeAttempt(attempt.id, {
-          finishReason: review.finishReason,
-          inputTokens: modelResult.inputTokens + review.inputTokens,
-          outputTokens: modelResult.outputTokens + review.outputTokens,
+          finishReason: modelResult.finishReason,
+          inputTokens: modelResult.inputTokens,
+          outputTokens: modelResult.outputTokens,
           validationSummary,
-          ...(reviewRequestId ? { providerRequestId: reviewRequestId } : {}),
+          ...(modelResult.providerRequestId ? { providerRequestId: modelResult.providerRequestId } : {}),
         });
-        if (review.changedSource) {
-          if (attempt.attemptNumber >= context.job.maxAttempts) throw new GenerationFailure('VISUAL_REVIEW_FAILED', 'Visual repair budget was exhausted.', validationSummary);
-          await advance('REPAIRING', 'REPAIRING_VISUALS', 80, 'Applying visual quality repairs.');
-          history.push({ role: 'user', content: [{ type: 'text', text: 'Re-run every source, build, runtime, and visual check after the visual repairs.' }] });
-          continue;
-        }
 
         if (this.options.artifactSink) {
           await this.options.artifactSink.persistWorkspaceArtifacts({
@@ -317,7 +253,7 @@ export class GenerationCoordinator {
         ...calls.map((call) => ({ type: 'tool_call' as const, id: call.id, name: call.name, arguments: call.arguments, ...(call.providerState ? { providerState: call.providerState } : {}) })),
       ];
       if (assistantContent.length) history.push({ role: 'assistant', content: assistantContent });
-      if (!calls.length) return { inputTokens, outputTokens, finishReason, providerRequestId, submitted: false };
+      if (!calls.length) return { inputTokens, outputTokens, finishReason, providerRequestId, submitted: true };
       budget.toolCalls += calls.length;
       if (budget.toolCalls > (this.options.maxToolCalls ?? 100)) {
         throw new GenerationFailure('MODEL_TOOL_BUDGET_EXHAUSTED', 'The generation exceeded its source tool-call budget.');
@@ -353,50 +289,12 @@ export class GenerationCoordinator {
           durationMs: performance.now() - startedAt,
         });
         results.push({ type: 'tool_result', id: call.id, name: call.name, result });
-        if (call.name === 'submit_candidate' && result.accepted === true) {
-          history.push({ role: 'user', content: results });
-          return { inputTokens, outputTokens, finishReason, providerRequestId, submitted: true };
-        }
       }
       history.push({ role: 'user', content: results });
     }
     throw new GenerationFailure('PROVIDER_OUTPUT_INVALID', 'The model exceeded the tool-turn budget.');
   }
 
-  private async reviewFrames(
-    model: string,
-    systemInstructions: string,
-    history: ModelMessage[],
-    tools: GenerationToolRegistry,
-    workspacePath: string,
-    capture: Record<string, unknown>,
-    budget: { tokens: number; toolCalls: number },
-    audit: { generationId: string; attemptId: string; sequence: number },
-    signal: AbortSignal,
-  ) {
-    const allFrameEntries = Array.isArray(capture.frames) ? capture.frames as Array<{ time?: unknown; file?: unknown }> : [];
-    const frameEntries = sampleEvenly(allFrameEntries, 8);
-    const content: ModelContent[] = [{
-      type: 'text',
-      text: `Review these representative frames and runtime report. If there is a concrete visual problem, repair the real source with tools. If it is publication quality, respond with a concise approval and make no source edits.\n${JSON.stringify({ runtime: capture.runtime, frames: frameEntries })}`,
-    }];
-    for (const frame of frameEntries) {
-      if (typeof frame.file !== 'string') continue;
-      const absolute = path.resolve(workspacePath, frame.file);
-      if (!absolute.startsWith(path.resolve(workspacePath) + path.sep)) throw new Error('Captured frame path escaped workspace.');
-      const data = await readFile(absolute);
-      if (data.byteLength > 5_000_000) continue;
-      content.push({ type: 'image', mimeType: 'image/png', data: data.toString('base64') });
-    }
-    const before = await tools.execute('run_source_checks', {});
-    const reviewHistory = [...history, { role: 'user' as const, content }];
-    const result = await this.runToolLoop(model, systemInstructions, reviewHistory, tools, budget, audit, signal);
-    const after = await tools.execute('run_source_checks', {});
-    const changedSource = JSON.stringify(before) !== JSON.stringify(after) || reviewHistory.some((message, index) =>
-      index >= history.length && message.content.some((item) => item.type === 'tool_call' && ['replace_project_file', 'apply_project_patch'].includes(item.name)),
-    );
-    return { ...result, changedSource, summary: { approved: !changedSource, response: reviewHistory.at(-1)?.content.find((item) => item.type === 'text') } };
-  }
 
   private async throwIfCancelled(context: GenerationJobContext, progress: number, signal: AbortSignal) {
     if (await this.store.isCancellationRequested(context.job.id)) {

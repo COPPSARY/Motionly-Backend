@@ -34,6 +34,7 @@ const schema = z.object({
   GENERATION_WORKER_POLL_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
   GENERATION_LEASE_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
   SANDBOX_IMAGE: z.string().min(1).default('motionly-renderer:local'),
+  SANDBOX_MODE: z.enum(['docker', 'local']).default('docker'),
   OBJECT_STORAGE_LOCAL_ROOT: z.string().min(1).default('./data/objects'),
 });
 
@@ -73,6 +74,7 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     generationWorkerPollMs: parsed.GENERATION_WORKER_POLL_MS,
     generationLeaseMs: parsed.GENERATION_LEASE_MS,
     sandboxImage: parsed.SANDBOX_IMAGE,
+    sandboxMode: parsed.SANDBOX_MODE,
     objectStorageLocalRoot: parsed.OBJECT_STORAGE_LOCAL_ROOT,
   };
 }

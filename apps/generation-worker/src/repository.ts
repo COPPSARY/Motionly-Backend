@@ -10,6 +10,7 @@ import {
 import type { Database } from '../../../packages/database/src/client.js';
 import {
   generationAttempts,
+  generationInputFiles,
   generationToolCalls,
   assets,
   generationEvents,
@@ -17,15 +18,15 @@ import {
   generationMessages,
   generationOutputFiles,
   generationOutputs,
+  projectFiles,
   projects,
-  projectVersionFiles,
-  projectVersions,
 } from '../../../packages/database/src/schema.js';
 import { projectSettingsFromValidation } from '../../../packages/generation-tools/src/validation-report.js';
 import { PROJECT_SOURCE_PATHS, type ProjectSourceFiles } from '../../api/src/services/project.service.js';
 
 export interface GenerationJobContext {
   job: typeof generationJobs.$inferSelect;
+  project?: { width: number; height: number; fps: number; duration: number };
   messages: Array<typeof generationMessages.$inferSelect>;
   files: ProjectSourceFiles;
   assets: Array<{ id: string; fileName: string; contentType: string; byteSize: number; checksum: string; objectKey: string }>;
@@ -62,7 +63,7 @@ export interface WorkerGenerationStore {
     durationMs: number;
   }): Promise<void>;
   saveOutput(generationId: string, files: ProjectSourceFiles, validationReport: Record<string, unknown>): Promise<string>;
-  publish(generationId: string, userId: string): Promise<{ status: 'COMPLETED' | 'AWAITING_APPLY'; versionId: string | null; revision: number }>;
+  publish(generationId: string, userId: string): Promise<{ status: 'COMPLETED' | 'AWAITING_APPLY'; sourceHash: string | null; revision: number }>;
   fail(generationId: string, code: string, message: string, details?: Record<string, unknown>): Promise<void>;
   isCancellationRequested(generationId: string): Promise<boolean>;
 }
@@ -73,6 +74,9 @@ export class DatabaseWorkerGenerationStore implements WorkerGenerationStore {
   async getContext(generationId: string): Promise<GenerationJobContext | null> {
     const [job] = await this.db.select().from(generationJobs).where(eq(generationJobs.id, generationId)).limit(1);
     if (!job) return null;
+    const [project] = await this.db.select({ width: projects.width, height: projects.height, fps: projects.fps, duration: projects.duration })
+      .from(projects).where(eq(projects.id, job.projectId)).limit(1);
+    if (!project) throw new Error('Generation project not found.');
     const [currentMessage] = await this.db.select().from(generationMessages).where(and(
       eq(generationMessages.generationId, generationId),
       eq(generationMessages.role, 'user'),
@@ -84,8 +88,8 @@ export class DatabaseWorkerGenerationStore implements WorkerGenerationStore {
         lte(generationMessages.createdAt, currentMessage.createdAt),
       ))
         .orderBy(desc(generationMessages.createdAt)).limit(50),
-      this.db.select({ path: projectVersionFiles.path, content: projectVersionFiles.content })
-        .from(projectVersionFiles).where(eq(projectVersionFiles.projectVersionId, job.baseVersionId)),
+      this.db.select({ path: generationInputFiles.path, content: generationInputFiles.content })
+        .from(generationInputFiles).where(eq(generationInputFiles.generationId, job.id)),
     ]);
     messages.reverse();
     const assetIds = currentMessage.assetRefs;
@@ -98,7 +102,7 @@ export class DatabaseWorkerGenerationStore implements WorkerGenerationStore {
       objectKey: assets.objectKey,
     }).from(assets).where(and(inArray(assets.id, assetIds), eq(assets.state, 'READY'))) : [];
     if (jobAssets.length !== new Set(assetIds).size) throw new Error('Generation asset is missing or not ready.');
-    return { job, messages, files: toSourceFiles(rows), assets: jobAssets };
+    return { job, project, messages, files: toSourceFiles(rows), assets: jobAssets };
   }
 
   async transition(input: {
@@ -225,16 +229,28 @@ export class DatabaseWorkerGenerationStore implements WorkerGenerationStore {
     errorCode?: string;
     durationMs: number;
   }) {
-    await this.db.insert(generationToolCalls).values({
-      generationId: input.generationId,
-      attemptId: input.attemptId,
-      sequence: input.sequence,
-      toolName: input.toolName.slice(0, 120),
-      status: input.status,
-      inputSummary: input.inputSummary,
-      ...(input.outputSummary ? { outputSummary: input.outputSummary } : {}),
-      ...(input.errorCode ? { errorCode: input.errorCode.slice(0, 120) } : {}),
-      durationMs: Math.max(0, Math.round(input.durationMs)),
+    await this.db.transaction(async (transaction) => {
+      await transaction.insert(generationToolCalls).values({
+        generationId: input.generationId,
+        attemptId: input.attemptId,
+        sequence: input.sequence,
+        toolName: input.toolName.slice(0, 120),
+        status: input.status,
+        inputSummary: input.inputSummary,
+        ...(input.outputSummary ? { outputSummary: input.outputSummary } : {}),
+        ...(input.errorCode ? { errorCode: input.errorCode.slice(0, 120) } : {}),
+        durationMs: Math.max(0, Math.round(input.durationMs)),
+      });
+      const [job] = await transaction.select().from(generationJobs).where(eq(generationJobs.id, input.generationId)).limit(1);
+      if (job) await appendEvent(transaction as unknown as Database, {
+        generationId: input.generationId,
+        type: 'PROGRESS',
+        status: job.status,
+        stage: job.stage,
+        progress: job.progress,
+        message: describeToolAction(input.toolName, input.inputSummary, input.status),
+        data: { tool: input.toolName, ...(typeof input.inputSummary.path === 'string' ? { path: input.inputSummary.path } : {}) },
+      });
     });
   }
 
@@ -256,68 +272,56 @@ export class DatabaseWorkerGenerationStore implements WorkerGenerationStore {
     });
   }
 
-  async publish(generationId: string, userId: string) {
+  async publish(generationId: string, _userId: string) {
     return this.db.transaction(async (transaction) => {
       const [job] = await transaction.select().from(generationJobs).where(eq(generationJobs.id, generationId)).for('update').limit(1);
       if (!job) throw new Error('Generation job not found.');
       const [project] = await transaction.select().from(projects).where(eq(projects.id, job.projectId)).for('update').limit(1);
       if (!project) throw new Error('Generation project not found.');
-      if (job.status === 'COMPLETED' && job.outputVersionId) {
-        return { status: 'COMPLETED' as const, versionId: job.outputVersionId, revision: project.revision };
+      if (job.status === 'COMPLETED' && job.outputSourceHash) {
+        return { status: 'COMPLETED' as const, sourceHash: job.outputSourceHash, revision: project.revision };
       }
       if (job.status === 'AWAITING_APPLY') {
-        return { status: 'AWAITING_APPLY' as const, versionId: null, revision: project.revision };
+        return { status: 'AWAITING_APPLY' as const, sourceHash: null, revision: project.revision };
       }
       if (job.status !== 'PUBLISHING') throw new Error(`Generation cannot publish from status ${job.status}.`);
       const [output] = await transaction.select().from(generationOutputs).where(eq(generationOutputs.generationId, generationId)).limit(1);
       if (!output) throw new Error('Generation output not found.');
       const projectSettings = projectSettingsFromValidation(output.validationReport);
 
-      if (project.revision !== job.baseRevision || project.currentVersionId !== job.baseVersionId) {
+      if (project.revision !== job.baseRevision || project.sourceHash !== job.baseSourceHash) {
         const now = new Date();
         await transaction.update(generationJobs).set({
           status: 'AWAITING_APPLY', stage: 'REVISION_CONFLICT', progress: 100, finishedAt: now, updatedAt: now,
           errorCode: 'REVISION_CONFLICT', errorMessage: 'The project changed while generation was running.',
-          errorDetails: { currentRevision: project.revision, currentVersionId: project.currentVersionId },
+          errorDetails: { currentRevision: project.revision, currentSourceHash: project.sourceHash },
         }).where(eq(generationJobs.id, generationId));
         await appendEvent(transaction as unknown as Database, {
           generationId, type: 'COMPLETED', status: 'AWAITING_APPLY', stage: 'REVISION_CONFLICT', progress: 100,
           message: 'Candidate preserved because the project changed.', data: { currentRevision: project.revision },
         });
-        return { status: 'AWAITING_APPLY' as const, versionId: null, revision: project.revision };
+        return { status: 'AWAITING_APPLY' as const, sourceHash: null, revision: project.revision };
       }
 
       const files = await transaction.select().from(generationOutputFiles).where(eq(generationOutputFiles.generationOutputId, output.id));
-      const [latest] = await transaction.select({ value: max(projectVersions.versionNumber) }).from(projectVersions)
-        .where(eq(projectVersions.projectId, project.id));
-      const [version] = await transaction.insert(projectVersions).values({
-        projectId: project.id,
-        versionNumber: (latest?.value ?? 0) + 1,
-        sourceHash: output.sourceHash,
-        message: 'Cloud AI generation',
-        parentVersionId: job.baseVersionId,
-        runtimeVersion: job.runtimeVersion,
-        skillBundleVersion: job.skillBundleVersion,
-        createdBy: userId,
-      }).returning();
-      if (!version) throw new Error('Unable to publish generated project version.');
-      await transaction.insert(projectVersionFiles).values(files.map((file) => ({
-        projectVersionId: version.id, path: file.path, content: file.content, contentHash: file.contentHash,
-      })));
       const revision = project.revision + 1;
       const now = new Date();
+      await transaction.delete(projectFiles).where(eq(projectFiles.projectId, project.id));
+      await transaction.insert(projectFiles).values(files.map((file) => ({
+        projectId: project.id, path: file.path, content: file.content, contentHash: file.contentHash, updatedAt: now,
+      })));
       await transaction.update(projects).set({
-        currentVersionId: version.id, revision, updatedAt: now, ...projectSettings,
+        sourceHash: output.sourceHash, revision, updatedAt: now, savedAt: now, ...projectSettings,
       }).where(eq(projects.id, project.id));
-      await transaction.update(generationOutputs).set({ publishedVersionId: version.id, publishedAt: now }).where(eq(generationOutputs.id, output.id));
+      await transaction.update(generationOutputs).set({ publishedRevision: revision, publishedAt: now }).where(eq(generationOutputs.id, output.id));
       await transaction.update(generationJobs).set({
-        status: 'COMPLETED', stage: 'COMPLETED', progress: 100, outputVersionId: version.id, finishedAt: now, updatedAt: now,
+        status: 'COMPLETED', stage: 'COMPLETED', progress: 100, outputSourceHash: output.sourceHash, finishedAt: now, updatedAt: now,
       }).where(eq(generationJobs.id, generationId));
       await appendEvent(transaction as unknown as Database, {
         generationId, type: 'COMPLETED', status: 'COMPLETED', stage: 'COMPLETED', progress: 100,
-        message: 'Generation published as a new project revision.', data: { outputVersionId: version.id, projectRevision: revision },
+        message: 'Done — I updated your Motionly project and saved the changes.', data: { outputSourceHash: output.sourceHash, projectRevision: revision },
       });
-      return { status: 'COMPLETED' as const, versionId: version.id, revision };
+      return { status: 'COMPLETED' as const, sourceHash: output.sourceHash, revision };
     });
   }
 
@@ -357,9 +361,24 @@ async function appendEvent(db: Database, input: Omit<typeof generationEvents.$in
   await db.insert(generationEvents).values({ ...input, sequence: (latest?.value ?? 0) + 1 });
 }
 
+function describeToolAction(toolName: string, input: Record<string, unknown>, status: string): string {
+  const path = typeof input.path === 'string' ? input.path : '';
+  const suffix = path ? ` ${path}` : '';
+  if (status === 'FAILED') return `I couldn’t complete ${toolName.replaceAll('_', ' ')}${suffix}.`;
+  switch (toolName) {
+    case 'list_project_files': return 'I’m listing the project source files.';
+    case 'read_project_file': return `I’m reading${suffix}.`;
+    case 'replace_project_file': return `I’m replacing${suffix} with the requested edit.`;
+    case 'apply_project_patch': return `I’m patching${suffix} with the requested edit.`;
+    case 'run_source_checks': return 'I’m checking the edited Motionly source.';
+    case 'submit_candidate': return 'I’m submitting the edited source to save it as a revision.';
+    default: return `I’m working on ${toolName.replaceAll('_', ' ')}.`;
+  }
+}
+
 function toSourceFiles(rows: Array<{ path: string; content: string }>): ProjectSourceFiles {
   const values = Object.fromEntries(rows.map((row) => [row.path, row.content])) as Partial<ProjectSourceFiles>;
-  for (const path of PROJECT_SOURCE_PATHS) if (typeof values[path] !== 'string') throw new Error(`Project version is missing ${path}`);
+  for (const path of PROJECT_SOURCE_PATHS) if (typeof values[path] !== 'string') throw new Error(`Generation input is missing ${path}`);
   return values as ProjectSourceFiles;
 }
 

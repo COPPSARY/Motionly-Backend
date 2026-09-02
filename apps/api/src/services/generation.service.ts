@@ -26,9 +26,9 @@ export interface GenerationRecord {
   status: GenerationStatus;
   stage: string;
   progress: number;
-  baseVersionId: string;
+  baseSourceHash: string;
   baseRevision: number;
-  outputVersionId: string | null;
+  outputSourceHash: string | null;
   provider: ModelProviderName;
   model: string;
   attemptCount: number;
@@ -54,10 +54,9 @@ export interface GenerationDefaults {
 export interface GenerationRepository {
   getWorkspaceMembership(workspaceId: string, userId: string): Promise<{ role: WorkspaceRole } | null>;
   getProjectAccess(projectId: string, userId: string): Promise<{
-    project: { id: string; workspaceId: string; currentVersionId: string | null; revision: number };
+    project: { id: string; workspaceId: string; sourceHash: string; revision: number };
     role: WorkspaceRole;
   } | null>;
-  versionBelongsToProject(projectId: string, versionId: string): Promise<boolean>;
   findByIdempotency(userId: string, idempotencyKey: string): Promise<GenerationRecord | null>;
   createProjectGeneration(input: {
     userId: string;
@@ -86,7 +85,7 @@ export interface GenerationRepository {
     threadId: string;
     prompt: string;
     assetIds: string[];
-    baseVersionId: string;
+    baseSourceHash: string;
     baseRevision: number;
     idempotencyKey: string;
     defaults: Required<GenerationDefaults>;
@@ -103,7 +102,7 @@ export interface GenerationRepository {
     data: Record<string, unknown> | null;
     createdAt: Date;
   }>>;
-  applyCandidate(generationId: string, userId: string, revision: number): Promise<{ versionId: string; revision: number } | null>;
+  applyCandidate(generationId: string, userId: string, revision: number): Promise<{ sourceHash: string; revision: number } | null>;
   countActiveForUser(userId: string): Promise<number>;
   summarizeReadyAssets(workspaceId: string, assetIds: string[]): Promise<{ count: number; totalBytes: number }>;
 }
@@ -157,14 +156,11 @@ export class GenerationService {
     const access = await this.repository.getProjectAccess(projectId, userId);
     if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
     this.requireWriteAccess(access.role);
-    if (access.project.revision !== request.baseRevision || access.project.currentVersionId !== request.baseVersionId) {
+    if (access.project.revision !== request.baseRevision || access.project.sourceHash !== request.baseSourceHash) {
       throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.', {
         currentRevision: access.project.revision,
-        currentVersionId: access.project.currentVersionId,
+        currentSourceHash: access.project.sourceHash,
       });
-    }
-    if (!(await this.repository.versionBelongsToProject(projectId, request.baseVersionId))) {
-      throw new AppError(404, 'PROJECT_VERSION_NOT_FOUND', 'Project version not found.');
     }
     await this.requireAssets(access.project.workspaceId, request.assetIds);
     const created = await this.repository.createEditGeneration({
@@ -223,16 +219,12 @@ export class GenerationService {
     const access = await this.repository.getProjectAccess(original.projectId, userId);
     if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
     this.requireWriteAccess(access.role);
-    if (!access.project.currentVersionId) throw new AppError(409, 'PROJECT_SOURCE_MISSING', 'The project does not have a current source version.');
-    const baseVersionId = request.baseVersionId ?? access.project.currentVersionId;
+    const baseSourceHash = request.baseSourceHash ?? access.project.sourceHash;
     const baseRevision = request.baseRevision ?? access.project.revision;
-    if (baseVersionId !== access.project.currentVersionId || baseRevision !== access.project.revision) {
+    if (baseSourceHash !== access.project.sourceHash || baseRevision !== access.project.revision) {
       throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.', {
-        currentRevision: access.project.revision, currentVersionId: access.project.currentVersionId,
+        currentRevision: access.project.revision, currentSourceHash: access.project.sourceHash,
       });
-    }
-    if (!(await this.repository.versionBelongsToProject(original.projectId, baseVersionId))) {
-      throw new AppError(404, 'PROJECT_VERSION_NOT_FOUND', 'Project version not found.');
     }
     const message = await this.repository.getLatestUserMessage(generationId);
     if (!message) throw new AppError(409, 'GENERATION_PROMPT_MISSING', 'The generation prompt could not be recovered.');
@@ -245,7 +237,7 @@ export class GenerationService {
       threadId: original.threadId,
       prompt: message.content,
       assetIds: message.assetIds,
-      baseVersionId,
+      baseSourceHash,
       baseRevision,
       idempotencyKey,
       defaults: this.defaults,
@@ -272,14 +264,14 @@ export class GenerationService {
   async apply(userId: string, generationId: string, revision: number) {
     const record = await this.repository.getForUser(generationId, userId);
     if (!record) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
-    if (record.status === 'COMPLETED' && record.outputVersionId) return { outputVersionId: record.outputVersionId };
+    if (record.status === 'COMPLETED' && record.outputSourceHash) return { outputSourceHash: record.outputSourceHash };
     if (record.status !== 'AWAITING_APPLY') throw new AppError(409, 'GENERATION_NOT_APPLICABLE', 'This generation has no conflicting candidate to apply.');
     const access = await this.repository.getProjectAccess(record.projectId, userId);
     if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
     this.requireWriteAccess(access.role);
     const applied = await this.repository.applyCandidate(generationId, userId, revision);
     if (!applied) throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.', { currentRevision: access.project.revision });
-    return { outputVersionId: applied.versionId, projectRevision: applied.revision };
+    return { outputSourceHash: applied.sourceHash, projectRevision: applied.revision };
   }
 
   private requireWriteAccess(role: WorkspaceRole) {
@@ -319,9 +311,9 @@ export function toGenerationResource(record: GenerationRecord) {
     status: record.status,
     stage: record.stage,
     progress: record.progress,
-    baseVersionId: record.baseVersionId,
+    baseSourceHash: record.baseSourceHash,
     baseRevision: record.baseRevision,
-    outputVersionId: record.outputVersionId,
+    outputSourceHash: record.outputSourceHash,
     provider: record.provider,
     model: record.model,
     attempt: record.attemptCount,

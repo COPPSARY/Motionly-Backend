@@ -43,6 +43,13 @@
       "when": 1788289365551,
       "tag": "0005_first_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788337000000,
+      "tag": "0006_rolling_project_snapshot",
+      "breakpoints": true
     }
   ]
 }

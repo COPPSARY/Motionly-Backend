@@ -8,7 +8,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "node --env-file=.env --watch --import ./scripts/process-identity.mjs --import tsx apps/api/src/server.ts",
+    "dev": "node scripts/dev.mjs",
     "dev:web": "vite --config apps/web/vite.config.ts",
     "dev:generation-worker": "node --env-file=.env --watch --import ./scripts/process-identity.mjs --import tsx apps/generation-worker/src/worker.ts",
     "build": "npm run build:api",
@@ -47,6 +47,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "drizzle-orm": "^0.45.2",
+    "esbuild": "^0.28.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "gsap": "^3.15.0",

@@ -44,7 +44,10 @@ export function createRequestLogger(logger: Logger, nodeEnv: 'development' | 'te
       const responseTime = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       const path = requestPath(request);
       const statusCode = response.statusCode;
-      const level = statusCode >= 500 || (statusCode === 401 && path === '/v1/auth/login') ? 'error' : statusCode >= 400 ? 'warn' : 'info';
+      const isSignedOutSessionProbe = statusCode === 401 && path === '/v1/auth/me';
+      const level = statusCode >= 500 || (statusCode === 401 && path === '/v1/auth/login')
+        ? 'error'
+        : statusCode >= 400 && !isSignedOutSessionProbe ? 'warn' : 'info';
       const error = response.locals.logError as unknown;
       request.log[level]({
         ...requestLogContext(request),
@@ -52,7 +55,7 @@ export function createRequestLogger(logger: Logger, nodeEnv: 'development' | 'te
         path,
         statusCode,
         responseTime: Math.round(responseTime),
-        ...(error ? { error: serializeLogError(error, nodeEnv === 'development') } : {}),
+        ...(error && !isSignedOutSessionProbe ? { error: serializeLogError(error, nodeEnv === 'development') } : {}),
       }, `${request.method} ${path} ${statusCode}`);
     });
     next();

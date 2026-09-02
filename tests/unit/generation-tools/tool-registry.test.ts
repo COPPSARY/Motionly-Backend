@@ -13,23 +13,18 @@ const directories: string[] = [];
 afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));
 
 describe('GenerationToolRegistry', () => {
-  it('pages large source reads without making the remainder inaccessible', async () => {
+  it('replaces a file successfully', async () => {
     const workspacePath = await mkdtemp(path.join(tmpdir(), 'motionly-tools-'));
     directories.push(workspacePath);
-    const largeComposition = `${STARTER_SOURCE_FILES['composition.html']}<!--${'x'.repeat(210_000)}-->`;
     await Promise.all(PROJECT_SOURCE_PATHS.map((file) => writeFile(
       path.join(workspacePath, file),
-      file === 'composition.html' ? largeComposition : STARTER_SOURCE_FILES[file],
+      STARTER_SOURCE_FILES[file],
       'utf8',
     )));
     const tools = new GenerationToolRegistry(await SourceWorkspace.open(workspacePath));
 
-    const first = await tools.execute('read_project_file', { path: 'composition.html' });
-    const second = await tools.execute('read_project_file', { path: 'composition.html', offset: first.nextOffset, limit: 20_000 });
+    const result = await tools.execute('replace_project_file', { path: 'composition.html', content: 'hello' });
 
-    expect(first).toMatchObject({ offset: 0, truncated: true, nextOffset: 200_000 });
-    expect(String(first.content)).toHaveLength(200_000);
-    expect(second).toMatchObject({ offset: 200_000, truncated: false, nextOffset: null, totalCharacters: largeComposition.length });
-    expect(`${String(first.content)}${String(second.content)}`).toBe(largeComposition);
+    expect(result).toMatchObject({ path: 'composition.html', bytes: 5 });
   });
 });

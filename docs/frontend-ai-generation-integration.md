@@ -1,9 +1,21 @@
 # Frontend Handoff: Cloud AI Generation
 
-Status: Backend V1 contract implemented and locally verified; frontend implementation remains deferred  
-Frontend reference: `C:\Users\proms\OneDrive\Desktop\Motionly`
+Status: Backend V1 contract implemented and locally verified; initial landing/editor integration implemented locally  
+Frontend references: `C:\Users\proms\OneDrive\Desktop\Motionly` and `C:\Users\proms\OneDrive\Desktop\MotionlySite`
 
-Backend verification reference (2026-09-02): typecheck and production build pass, 112 tests pass with three environment-dependent skips, all 8 deterministic structural/adversarial evaluation cases pass, and the six pinned frontend baseline files match commit `d4deb89164310de20edf796d702cb841692d93b6`. Docker/FFmpeg, clean-PostgreSQL concurrency, credentialed Gemini, and blind visual-quality gates still require their target environments before production release.
+Backend verification reference (2026-09-02): typecheck and production build pass, 121 tests pass with three environment-dependent skips, all 8 deterministic structural/adversarial evaluation cases pass, and the six pinned frontend baseline files match commit `d4deb89164310de20edf796d702cb841692d93b6`. Docker/FFmpeg, clean-PostgreSQL concurrency, credentialed Gemini, and blind visual-quality gates still require their target environments before production release.
+
+## Implemented frontend slice (2026-09-02)
+
+- `MotionlySite` carries a non-empty landing prompt to the editor with `URLSearchParams`; it does not call a model or generation API from the landing page.
+- Login return handling preserves the prompt and uses the configured editor origin.
+- `MotionlySite/.env` supports `MOTIONLY_API_URL` and `MOTIONLY_EDITOR_URL`; `npm start` and `npm run build` generate the browser runtime config before Angular starts.
+- `Motionly` uses `VITE_MOTIONLY_API_URL`, authenticated cookies, the session CSRF token, the real `/v1` asset routes, and unwrapped API envelopes.
+- The editor preserves a landing prompt across its own login redirect, waits for the cloud workspace, starts one new-project generation, streams progress, and opens the generated project when the terminal completion event arrives.
+- Manual editor prompts use the selected project's real `currentVersionId` and `revision`; when no project is selected they create a new generated project.
+- The local `feat/project-crud` branch was fast-forwarded into the Motionly working branch and its response types were aligned with the current backend `{ project, version }` contract.
+
+Verified locally: Motionly typecheck, 20/20 tests, and production build pass; MotionlySite production build passes; the new runtime-config tests pass 3/3. A headless-Chrome flow confirmed that the exact Unicode prompt `Create a crisp launch — សួស្តី & kinetic type` travels from the landing textarea into the editor's generation POST body. The wider MotionlySite suite currently has unrelated pre-existing failures (25 pass, 13 fail) in older navigation/content assertions and component tests missing `HttpClient` providers.
 
 ## Purpose
 
@@ -33,6 +45,14 @@ VITE_MOTIONLY_API_URL=https://api.example.com
 ```
 
 Requests use the existing opaque `motionly_session` cookie with `credentials: "include"`. Mutations send the session-bound `X-CSRF-Token`. The provider and model are intentionally absent from frontend configuration in V1.
+
+The backend must allow both browser origins because the landing site checks the session before handing off to the editor. For local development:
+
+```text
+FRONTEND_ORIGINS=http://localhost:5173,http://localhost:4200
+```
+
+Production should use the corresponding `https://app.motionly.site` and landing-site origins.
 
 ## API flow for editing an open project
 
@@ -276,10 +296,14 @@ Do not begin by embedding networking directly throughout `App.svelte`; keep the 
 
 ## Frontend acceptance checklist
 
-- [ ] A prompt creates a backend job exactly once despite retries/double clicks.
+- [x] A landing prompt is carried to the editor and creates one backend job after the workspace is ready.
+- [x] Manual prompts use the open project's real version/revision or create a new generated project.
+- [x] Completion reloads the generated project source through the cloud project gallery.
+- [x] API URL, editor URL, credentials, CSRF, upload paths, and response envelopes match the backend contract.
+- [ ] Persist idempotency keys across transient submit retries and hard-disable every duplicate-submit path.
 - [ ] Progress reconnects after temporary network loss and page refresh.
 - [ ] Cancellation, failure, retry, and revision conflict have clear states.
-- [ ] Completion reloads the exact returned version/revision.
+- [ ] Verify the reloaded source version exactly matches the completion event before mounting.
 - [ ] Every registered generated layer is selectable and editable through the existing runtime.
 - [ ] Storyboard/timeline metadata comes from the generated `CompositionDefinition`.
 - [ ] Preview and export continue to use the same mounted DOM and caller-owned GSAP timeline.

@@ -6,14 +6,14 @@ import {
   generationAttempts,
   generationToolCalls,
   generationEvents,
+  generationInputFiles,
   generationJobs,
   generationMessages,
   generationOutputFiles,
   generationOutputs,
   generationThreads,
   projects,
-  projectVersionFiles,
-  projectVersions,
+  projectFiles,
   queueTasks,
   users,
 } from '../../../packages/database/src/schema.js';
@@ -23,16 +23,16 @@ describe('database schema', () => {
     expect(getTableName(users)).toBe('users');
   });
 
-  it('stores projects as immutable multi-file versions', () => {
+  it('stores projects as rolling multi-file snapshots', () => {
     expect(getTableName(projects)).toBe('projects');
-    expect(getTableName(projectVersions)).toBe('project_versions');
-    expect(getTableName(projectVersionFiles)).toBe('project_version_files');
+    expect(getTableName(projectFiles)).toBe('project_files');
   });
 
   it('stores durable generation, event, output, artifact, and queue state', () => {
     expect(getTableName(generationThreads)).toBe('generation_threads');
     expect(getTableName(generationMessages)).toBe('generation_messages');
     expect(getTableName(generationJobs)).toBe('generation_jobs');
+    expect(getTableName(generationInputFiles)).toBe('generation_input_files');
     expect(getTableName(generationAttempts)).toBe('generation_attempts');
     expect(getTableName(generationToolCalls)).toBe('generation_tool_calls');
     expect(getTableName(generationEvents)).toBe('generation_events');

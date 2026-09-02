@@ -22,8 +22,8 @@ describe.skipIf(!existsSync(chrome))('Motionly renderer browser harness', () => 
     await Promise.all(PROJECT_SOURCE_PATHS.map((file) => {
       const content = file === 'timeline.js'
         ? `import { reveal } from '@motionly/presets';\n${STARTER_SOURCE_FILES[file].replace(
-          "register('title', title);",
-          "register('title', title);\n  reveal(timeline, title, { at: 0, duration: 0.3 });",
+          "register('stage', stage);",
+          "register('stage', stage);\n  reveal(timeline, stage, { at: 0, duration: 0.3 });",
         )}`
         : STARTER_SOURCE_FILES[file];
       return writeFile(path.join(workspace, file), content, 'utf8');
@@ -46,7 +46,7 @@ describe.skipIf(!existsSync(chrome))('Motionly renderer browser harness', () => 
       throw new Error(`Renderer mount failed: ${error instanceof Error ? error.message : String(error)}; ${browserErrors.join('; ')}`);
     }
 
-    expect(result.inspection.registeredIds).toContain('title');
+    expect(result.inspection.registeredIds).toContain('stage');
     expect(result.inspection.stateChanged).toBe(true);
     expect(result.frames).toHaveLength(3);
     expect(result.frames[0]?.file).toMatch(/^artifacts\/frames\/frame-/);
