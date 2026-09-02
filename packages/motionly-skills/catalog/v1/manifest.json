@@ -13,6 +13,23 @@
                        "sha256":  "ef0a0f706c240fa45cbde91d12726ccbac3dc7c50889c6eb3cd52bef342dc3c9"
                    },
                    {
+                       "id":  "write-motionly",
+                       "file":  "write-motionly.md",
+                       "tags":  [
+                                    "create",
+                                    "edit",
+                                    "composition",
+                                    "html",
+                                    "css",
+                                    "gsap",
+                                    "animation",
+                                    "typography",
+                                    "layout",
+                                    "style"
+                                ],
+                       "sha256":  "a7a7aff4dc9172228e4a2d48d166001841a8baccb91218f086c07e2ce91fa38d"
+                   },
+                   {
                        "id":  "helpers",
                        "file":  "helpers.md",
                        "tags":  [
