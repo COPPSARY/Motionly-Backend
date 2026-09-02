@@ -13,7 +13,7 @@
     "build": "npm run build:api",
     "build:api": "tsc -p tsconfig.build.json",
     "build:web": "vite build --config apps/web/vite.config.ts",
-    "start": "node --env-file=.env dist/apps/api/src/server.js",
+    "start": "node dist/apps/api/src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
