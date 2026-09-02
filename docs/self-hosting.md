@@ -38,7 +38,7 @@ Replicated API processes
     `---- OIDC 
 ```
 
-Keep object storage private and expose it only through signed URLs. Run renderer workers separately from the API and apply resource limits plus network isolation. Pin renderer images and dependencies to retain reproducible rendering of historical source versions.
+Keep object storage private and expose it only through signed URLs. Run renderer workers separately from the API and apply resource limits plus network isolation. Pin renderer images, dependencies, and the submitted job source snapshot to retain reproducible rendering after a project is saved again.
 
 ## Operations
 

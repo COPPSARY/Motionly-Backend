@@ -10,7 +10,7 @@
 
 - Create, save, update, and delete projects
 - Project ownership
-- Project versions
+- Rolling latest-save snapshot
 
 ## 3. Storage
 

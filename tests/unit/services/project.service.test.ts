@@ -11,7 +11,6 @@ import {
 const userId = '00000000-0000-4000-8000-000000000001';
 const workspaceId = '00000000-0000-4000-8000-000000000002';
 const projectId = '00000000-0000-4000-8000-000000000003';
-const versionId = '00000000-0000-4000-8000-000000000004';
 const files: ProjectSourceFiles = {
   'composition.html': '<main>Hello</main>',
   'styles.css': 'main { color: red; }',
@@ -27,11 +26,12 @@ const project: ProjectRecord = {
   height: 1080,
   fps: 60,
   duration: 30,
-  currentVersionId: versionId,
+  sourceHash: hashSourceFiles(files),
   revision: 4,
   createdBy: userId,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  savedAt: new Date('2026-01-01T00:00:00.000Z'),
   archivedAt: null,
 };
 
@@ -45,13 +45,10 @@ function repository() {
     archive: vi.fn(),
     getCurrentSource: vi.fn(),
     saveSource: vi.fn(),
-    listVersions: vi.fn(),
-    getVersion: vi.fn(),
-    restoreVersion: vi.fn(),
   };
 }
 
-describe('ProjectService ownership and version rules', () => {
+describe('ProjectService ownership and rolling snapshot rules', () => {
   it('hides workspaces from non-members', async () => {
     const repo = repository();
     repo.getWorkspaceMembership.mockResolvedValue(null);
@@ -94,38 +91,15 @@ describe('ProjectService ownership and version rules', () => {
       .rejects.toMatchObject({ status: 409, code: 'REVISION_CONFLICT', details: { currentRevision: 6 } });
   });
 
-  it('restores an old version by asking the repository to create a new version', async () => {
+  it('passes the rolling snapshot hash to the repository', async () => {
     const repo = repository();
     repo.getProjectAccess.mockResolvedValue({ project, role: 'owner' });
-    repo.getVersion.mockResolvedValue({
-      id: versionId,
-      projectId,
-      versionNumber: 2,
-      sourceHash: hashSourceFiles(files),
-      message: null,
-      createdBy: userId,
-      createdAt: new Date(),
-      files,
-    });
-    repo.restoreVersion.mockResolvedValue({
-      project: { ...project, revision: 5 },
-      version: { id: '00000000-0000-4000-8000-000000000005', projectId, versionNumber: 5, sourceHash: hashSourceFiles(files), message: 'Restore version 2', createdBy: userId, createdAt: new Date() },
-    });
+    repo.saveSource.mockResolvedValue({ project, unchanged: true });
     const service = new ProjectService(repo as unknown as ProjectRepository);
 
-    await service.restoreVersion(userId, projectId, versionId, 4);
-    expect(repo.restoreVersion).toHaveBeenCalledWith(projectId, versionId, userId, 4, undefined);
-  });
-
-  it('requires the restored version to belong to the project', async () => {
-    const repo = repository();
-    repo.getProjectAccess.mockResolvedValue({ project, role: 'owner' });
-    repo.getVersion.mockResolvedValue(null);
-    const service = new ProjectService(repo as unknown as ProjectRepository);
-
-    await expect(service.restoreVersion(userId, projectId, versionId, 4))
-      .rejects.toMatchObject({ status: 404, code: 'PROJECT_VERSION_NOT_FOUND' });
-    expect(repo.restoreVersion).not.toHaveBeenCalled();
+    await expect(service.saveSource(userId, projectId, { revision: 4, files }))
+      .resolves.toMatchObject({ unchanged: true });
+    expect(repo.saveSource).toHaveBeenCalledWith(projectId, { revision: 4, files }, hashSourceFiles(files));
   });
 
   it('hashes every canonical source file deterministically', () => {

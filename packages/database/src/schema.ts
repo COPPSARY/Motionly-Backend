@@ -11,7 +11,6 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 export const workspaceRole = pgEnum('workspace_role', ['owner', 'editor', 'viewer']);
@@ -58,11 +57,12 @@ export const projects = pgTable('projects', {
   height: integer('height').notNull(),
   fps: integer('fps').notNull(),
   duration: doublePrecision('duration').notNull(),
-  currentVersionId: uuid('current_version_id').references((): AnyPgColumn => projectVersions.id, { onDelete: 'restrict' }),
+  sourceHash: text('source_hash').notNull(),
   revision: integer('revision').default(1).notNull(),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  savedAt: timestamp('saved_at', { withTimezone: true }).defaultNow().notNull(),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
 }, (table) => [
   uniqueIndex('projects_workspace_slug_unique').on(table.workspaceId, table.slug),
@@ -74,28 +74,15 @@ export const projects = pgTable('projects', {
   check('projects_revision_check', sql`${table.revision} >= 1`),
 ]);
 
-export const projectVersions = pgTable('project_versions', {
-  id: uuid('id').defaultRandom().primaryKey(),
+export const projectFiles = pgTable('project_files', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  versionNumber: integer('version_number').notNull(),
-  sourceHash: text('source_hash').notNull(),
-  message: text('message'),
-  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  uniqueIndex('project_versions_project_number_unique').on(table.projectId, table.versionNumber),
-  index('project_versions_project_created_idx').on(table.projectId, table.createdAt),
-  check('project_versions_number_check', sql`${table.versionNumber} >= 1`),
-]);
-
-export const projectVersionFiles = pgTable('project_version_files', {
-  projectVersionId: uuid('project_version_id').notNull().references(() => projectVersions.id, { onDelete: 'cascade' }),
   path: text('path').notNull(),
   content: text('content').notNull(),
   contentHash: text('content_hash').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  primaryKey({ columns: [table.projectVersionId, table.path] }),
-  check('project_version_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
+  primaryKey({ columns: [table.projectId, table.path] }),
+  check('project_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
 ]);
 
 export const authSessions = pgTable('auth_sessions', {

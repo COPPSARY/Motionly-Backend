@@ -2,7 +2,7 @@
 
 The backend service for [Motionly](../motionly), a code-first motion graphics editor built around TypeScript compositions, HTML/SVG, GSAP timelines, and direct browser preview.
 
-This repository will provide the optional server-side capabilities required for hosted and self-hosted Motionly installations: authentication, workspaces, project persistence, source versioning, asset storage, render jobs, and collaboration infrastructure.
+This repository will provide the optional server-side capabilities required for hosted and self-hosted Motionly installations: authentication, workspaces, project persistence, rolling source snapshots, asset storage, render jobs, and collaboration infrastructure.
 
 > [!IMPORTANT]
 > The authored `composition.html`, `styles.css`, `timeline.js`, and `index.ts` files remain the only project source. The backend must not introduce a JSON animation document, a second project representation, an interpreter, or a separate rendering model. The TypeScript adapter must continue to provide `CompositionDefinition.build()` to preview and rendering.
@@ -11,7 +11,7 @@ This repository will provide the optional server-side capabilities required for 
 
 V1 Area 1, Authentication, has its core implementation in place. Real PostgreSQL/Supabase integration coverage and broader authentication lifecycle tests remain follow-up validation work.
 
-V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, immutable four-file source versions, optimistic concurrency, soft deletion, version history, restore operations, the applied database migration, and Motionly frontend Open/Save integration.
+V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, one rolling four-file source snapshot per project, no-op save detection, optimistic concurrency, soft deletion, the database migration, and Motionly frontend Open/Save integration.
 
 ## Goals
 
@@ -30,7 +30,7 @@ V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, im
 - Executing user-authored TypeScript inside the API process.
 - Storing large binary media directly in PostgreSQL.
 - Splitting the first release into many independently deployed microservices.
-- Implementing realtime collaborative editing before normal save/version conflict handling is reliable.
+- Implementing realtime collaborative editing before normal save/revision conflict handling is reliable.
 
 ## Proposed technology stack
 
@@ -66,7 +66,7 @@ Motionly API
   |     |
   |     +----------------> PostgreSQL
   |                          users, workspaces, projects,
-  |                          source versions and job state
+  |                          latest source snapshots and job state
   |
   +----------------------> Durable render queue
                                   |
@@ -80,7 +80,7 @@ Motionly API
 The first implementation is a modular monolith with two processes:
 
 1. **API process** — authentication, authorization, project operations, asset metadata, signed URLs, and render-job submission.
-2. **Renderer process** — claims queued work, compiles and mounts a pinned TypeScript composition version, exports frames/video, uploads artifacts, and reports progress.
+2. **Renderer process** — claims queued work, compiles and mounts the source snapshot pinned to a render job, exports frames/video, uploads artifacts, and reports progress.
 
 Only the renderer is separated from the API initially. Additional microservices should be introduced only when measured operational requirements justify them.
 
@@ -134,11 +134,11 @@ motionly_backend/
 
 ## Source-of-truth boundary
 
-A Motionly project is TypeScript source implementing `CompositionDefinition`. The backend stores that source as text and maintains immutable versions of it.
+A Motionly project is TypeScript source implementing `CompositionDefinition`. The backend stores the latest saved four-file snapshot as text and atomically replaces it on a changed save.
 
 The visual editor may keep temporary overrides in browser memory while a user is interacting, but a saved edit must become a TypeScript source change. Persisting visual overrides as an independent animation document would create two competing sources of truth and is not permitted.
 
-Compilation output may be cached as a derived artifact. It is never the editable project source and can always be regenerated from a pinned source version and its dependencies.
+Compilation output may be cached as a derived artifact. It is never the editable project source and can always be regenerated from a saved source snapshot and its dependencies.
 
 ## Initial database model
 
@@ -187,37 +187,25 @@ The `(workspace_id, user_id)` pair is unique. Authorization must be checked at t
 | `width` / `height` | Composition dimensions |
 | `fps` | Composition frame rate |
 | `duration` | Composition duration in seconds |
-| `current_version_id` | Published/current source version |
+| `source_hash` | SHA-256 hash used to skip unchanged saves |
 | `revision` | Optimistic-concurrency counter |
 | `created_by` | Creator identifier |
 | `created_at` | Creation timestamp |
 | `updated_at` | Last update timestamp |
+| `saved_at` | Last changed source-save timestamp |
 | `archived_at` | Optional soft-delete timestamp |
 
-### `project_versions`
+### `project_files`
 
 | Column | Purpose |
 | --- | --- |
-| `id` | Version UUID |
 | `project_id` | Project reference |
-| `version_number` | Monotonically increasing project version |
-| `source_hash` | Content hash used for integrity and deduplication |
-| `message` | Optional version description |
-| `created_by` | Author identifier |
-| `created_at` | Creation timestamp |
-
-Versions are immutable. A render job always references a specific version rather than whatever source happens to be current when the worker starts.
-
-### `project_version_files`
-
-| Column | Purpose |
-| --- | --- |
-| `project_version_id` | Immutable project-version reference |
 | `path` | One of `composition.html`, `styles.css`, `timeline.js`, or `index.ts` |
 | `content` | Complete authored file content |
 | `content_hash` | Per-file SHA-256 integrity hash |
+| `updated_at` | Snapshot replacement timestamp |
 
-The four rows belonging to a version are the canonical project source bundle. The API represents them as a keyed transport object, not as a separate animation document or editable project model.
+Each project owns exactly four rows. A changed save replaces all four rows in one transaction; an identical source hash produces no database write. The API represents the rows as a keyed transport object, not as a separate animation document or editable project model.
 
 ### `assets`
 
@@ -301,7 +289,7 @@ PATCH  /v1/workspaces/:workspaceId/members/:userId
 DELETE /v1/workspaces/:workspaceId/members/:userId
 ```
 
-### Projects and source versions
+### Projects and rolling source snapshot
 
 ```text
 GET    /v1/workspaces/:workspaceId/projects
@@ -311,12 +299,9 @@ PATCH  /v1/projects/:projectId
 DELETE /v1/projects/:projectId
 GET    /v1/projects/:projectId/source
 PUT    /v1/projects/:projectId/source
-GET    /v1/projects/:projectId/versions
-GET    /v1/projects/:projectId/versions/:versionId
-POST   /v1/projects/:projectId/versions/:versionId/restore
 ```
 
-Saving source requires the last known project revision. A stale revision returns `409 Conflict` with enough information for the editor to reload or reconcile changes without silently overwriting another edit.
+Saving source requires the last known project revision. A stale revision returns `409 Conflict`. Identical source returns `unchanged: true` without incrementing the revision; changed source atomically replaces the four stored files.
 
 ### Assets
 
@@ -358,7 +343,7 @@ VITE_MOTIONLY_API_URL=http://localhost:3000
 Expected behavior:
 
 - Without an API URL, Motionly continues to run as a local editor with browser downloads.
-- With an API URL, Open and Save operate on persisted projects and immutable versions.
+- With an API URL, Open and Save operate on each project's latest persisted snapshot.
 - Asset import uses the backend's signed-upload workflow.
 - Export can submit remote render jobs while retaining local PNG frame export.
 - The frontend never receives database credentials, storage service credentials, or authentication service secrets.
@@ -429,24 +414,24 @@ The seven areas below are the shared V1 delivery plan and should be implemented 
 
 ### 2. Projects
 
-**Scope:** create, save, update, and delete projects; project ownership; and project versions.
+**Scope:** create, save, update, and delete projects; project ownership; and one rolling latest-save snapshot.
 
-- Add project and immutable project-version tables.
+- Add project and four-file rolling-snapshot tables.
 - Implement project create, read, update, and delete endpoints.
 - Scope every project operation to an authorized workspace member.
 - Store the four authored source files as the only project representation.
 - Add revision-aware saving and optimistic concurrency checks.
-- Add version history and restore operations.
-- Define version retention rules without deleting versions referenced by render jobs.
+- Skip unchanged source saves using a deterministic hash.
+- Atomically replace the previous snapshot after a changed save.
 - Connect Motionly Open and Save actions to the API.
 
-**Exit condition:** an authorized user can create, open, edit, save, reload, delete, and restore a project without accessing projects owned by another workspace or introducing a second source representation.
+**Exit condition:** an authorized user can create, open, edit, save, reload, and delete a project without accessing projects owned by another workspace, introducing a second source representation, or accumulating save history.
 
 ### 3. Storage
 
 **Scope:** project source and code, uploaded assets, rendered videos, and thumbnails.
 
-- Keep project source and version metadata in PostgreSQL.
+- Keep the latest project source snapshot and metadata in PostgreSQL.
 - Define a provider-independent object-storage interface.
 - Implement the first S3-compatible storage adapter.
 - Add signed upload and download operations for large files.

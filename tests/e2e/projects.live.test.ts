@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { AuthProvider } from '../../packages/auth/src/types.js';
 import { TokenVault } from '../../packages/auth/src/token-vault.js';
 import { createDatabase } from '../../packages/database/src/client.js';
-import { projects, users, workspaceMembers, workspaces } from '../../packages/database/src/schema.js';
+import { projectFiles, projects, users, workspaceMembers, workspaces } from '../../packages/database/src/schema.js';
 import { DatabaseSessionStore } from '../../apps/api/src/repositories/auth.repository.js';
 import { DatabaseProjectRepository } from '../../apps/api/src/repositories/project.repository.js';
 import { DatabaseWorkspaceRepository } from '../../apps/api/src/repositories/workspace.repository.js';
@@ -20,7 +20,7 @@ const encryptionKey = process.env.SESSION_ENCRYPTION_KEY;
 const runLive = process.env.RUN_LIVE_E2E === 'true' && Boolean(databaseUrl && encryptionKey);
 
 describe.skipIf(!runLive)('Projects live HTTP flow', () => {
-  it('creates, opens, updates, versions, restores, and archives an owned project', async () => {
+  it('creates, opens, replaces one rolling snapshot, skips no-op saves, and archives an owned project', async () => {
     if (!databaseUrl || !encryptionKey) return;
     const { db, pool } = createDatabase(databaseUrl);
     const userId = randomUUID();
@@ -69,9 +69,8 @@ describe.skipIf(!runLive)('Projects live HTTP flow', () => {
       const created = await authenticated(request(app).post(`/v1/workspaces/${workspaceId}/projects`)).send({
         name: 'End-to-end Film', width: 1920, height: 1080, fps: 60, duration: 24, files,
       }).expect(201);
-      const projectId = created.body.data.project.id as string;
-      const initialVersionId = created.body.data.version.id as string;
-      expect(created.body.data.project).toMatchObject({ workspaceId, revision: 1, currentVersionId: initialVersionId });
+      const projectId = created.body.data.id as string;
+      expect(created.body.data).toMatchObject({ workspaceId, revision: 1 });
 
       const listed = await authenticated(request(app).get(`/v1/workspaces/${workspaceId}/projects`)).expect(200);
       expect(listed.body.data).toHaveLength(1);
@@ -89,30 +88,27 @@ describe.skipIf(!runLive)('Projects live HTTP flow', () => {
 
       const secondFiles = { ...files, 'composition.html': '<template id="live"><main>Live two</main></template>' };
       const saved = await authenticated(request(app).put(`/v1/projects/${projectId}/source`))
-        .send({ revision: 2, files: secondFiles, message: 'Second source' }).expect(200);
-      expect(saved.body.data).toMatchObject({ project: { revision: 3 }, version: { versionNumber: 2 } });
+        .send({ revision: 2, files: secondFiles }).expect(200);
+      expect(saved.body.data).toMatchObject({ project: { revision: 3 }, unchanged: false });
 
       const source = await authenticated(request(app).get(`/v1/projects/${projectId}/source`)).expect(200);
       expect(source.body.data).toMatchObject({ revision: 3, files: secondFiles });
-      const history = await authenticated(request(app).get(`/v1/projects/${projectId}/versions`)).expect(200);
-      expect(history.body.data.map((version: { versionNumber: number }) => version.versionNumber)).toEqual([2, 1]);
-
-      const restored = await authenticated(request(app).post(`/v1/projects/${projectId}/versions/${initialVersionId}/restore`))
-        .send({ revision: 3 }).expect(201);
-      expect(restored.body.data).toMatchObject({ project: { revision: 4 }, version: { versionNumber: 3 } });
-      const restoredSource = await authenticated(request(app).get(`/v1/projects/${projectId}/source`)).expect(200);
-      expect(restoredSource.body.data.files).toEqual(files);
+      const unchanged = await authenticated(request(app).put(`/v1/projects/${projectId}/source`))
+        .send({ revision: 3, files: secondFiles }).expect(200);
+      expect(unchanged.body.data).toMatchObject({ project: { revision: 3 }, unchanged: true });
+      const storedFiles = await db.select().from(projectFiles).where(eq(projectFiles.projectId, projectId));
+      expect(storedFiles).toHaveLength(4);
+      await authenticated(request(app).get(`/v1/projects/${projectId}/versions`)).expect(404);
 
       const stale = await authenticated(request(app).put(`/v1/projects/${projectId}/source`))
         .send({ revision: 2, files }).expect(409);
-      expect(stale.body.error).toMatchObject({ code: 'REVISION_CONFLICT', details: { currentRevision: 4 } });
+      expect(stale.body.error).toMatchObject({ code: 'REVISION_CONFLICT', details: { currentRevision: 3 } });
 
-      await authenticated(request(app).delete(`/v1/projects/${projectId}`)).send({ revision: 4 }).expect(204);
+      await authenticated(request(app).delete(`/v1/projects/${projectId}`)).send({ revision: 3 }).expect(204);
       const empty = await authenticated(request(app).get(`/v1/workspaces/${workspaceId}/projects`)).expect(200);
       expect(empty.body.data).toEqual([]);
       await authenticated(request(app).get(`/v1/projects/${projectId}`)).expect(404);
     } finally {
-      await db.update(projects).set({ currentVersionId: null }).where(eq(projects.workspaceId, workspaceId));
       await db.delete(projects).where(eq(projects.workspaceId, workspaceId));
       await db.delete(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId));
       await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
