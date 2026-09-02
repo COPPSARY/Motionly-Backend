@@ -76,7 +76,7 @@ export class GenerationCoordinator {
     });
 
     const presetReference = context.job.intent === 'CREATE' ? await loadPromoReference() : '';
-    const maxRepairAttempts = this.options.maxRepairAttempts ?? 1;
+    const maxRepairAttempts = this.options.maxRepairAttempts ?? 2;
     let files: ProjectSourceFiles | undefined;
     let repairFeedback = '';
     for (let attempt = 0; attempt <= maxRepairAttempts; attempt += 1) {
@@ -148,7 +148,7 @@ function buildSystemInstructions(skills: ReturnType<typeof routeSkills>, presetR
     'Make exactly one tool call to return_changed_files. Return only changed files, not the full project.',
     'Only these files may be edited: composition.html, styles.css, timeline.js, index.ts.',
     'Preserve unrelated source exactly.',
-    'For CREATE requests, preserve and extend the visual system: return meaningful semantic HTML, substantial CSS styling, intentional typography and placement, multiple connected scenes, and real GSAP choreography including at least one persistent shape morph or match-cut. Never replace a composition with plain text or leave styles.css empty.',
+    'For CREATE requests, preserve and extend the visual system: return meaningful semantic HTML, substantial CSS styling, intentional typography and placement, multiple connected scenes, and real GSAP choreography including at least one persistent shape morph or match-cut. Pace it like the promo reference: use short one-sentence editorial beats, giant-to-readable zoom or slide entrances, restrained bounce/settle, a readable hold, then an overlapping handoff. Do not make one static hero or a slow sequence of unrelated fades. Never replace a composition with plain text or leave styles.css empty.',
     presetReference ? 'The following is the vendored Motionly promo reference. Learn from its implementation and copy/adapt its composition patterns when useful. Replace its branding, exact copy, assets, and timings with the user request; do not import from the reference directory.' : '',
     '',
     presetReference,
@@ -240,6 +240,11 @@ function assertCreateQuality(context: GenerationJobContext, files: ProjectSource
   }
   if (!/\.fromTo\s*\(|\.to\s*\(|\.from\s*\(|\.set\s*\(/.test(files['timeline.js'])) {
     throw generationError('SOURCE_QUALITY_INVALID', 'New compositions must include authored GSAP timeline motion.');
+  }
+  const textElements = files['composition.html'].match(/<(?:h1|h2|h3|p)\b/gi)?.length ?? 0;
+  const animationOperations = files['timeline.js'].match(/\.(?:fromTo|to|from|set)\s*\(/g)?.length ?? 0;
+  if (textElements < 3 || animationOperations < 6 || !/autoAlpha|opacity/i.test(files['timeline.js']) || !/\by\s*:|\bscale\s*:/i.test(files['timeline.js'])) {
+    throw generationError('SOURCE_QUALITY_INVALID', 'New compositions need several editorial text beats with zoom or slide motion, settle, and readable transitions.');
   }
   if (!/borderRadius|morph\s*\(|match[- ]?cut/i.test(`${files['composition.html']}\n${files['styles.css']}\n${files['timeline.js']}`)) {
     throw generationError('SOURCE_QUALITY_INVALID', 'New compositions must include a shape morph or match-cut transition.');
