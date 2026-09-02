@@ -6,7 +6,6 @@ import { ModelProviderError } from '../../../packages/ai-providers/src/types.js'
 import { MAX_GENERATION_ASSET_BYTES } from '../../../packages/contracts/src/generations.js';
 import { GenerationToolRegistry, SOURCE_TOOL_DEFINITIONS } from '../../../packages/generation-tools/src/tool-registry.js';
 import { SourceWorkspace } from '../../../packages/generation-tools/src/source-workspace.js';
-import { auditedSourcePaths, auditedToolNames } from '../../../packages/generation-tools/src/source-policy.js';
 import { loadSkillBundle } from '../../../packages/motionly-skills/src/loader.js';
 import { routeSkills } from '../../../packages/motionly-skills/src/router.js';
 import { MOTIONLY_RUNTIME_VERSION } from '../../../packages/motionly-runtime/src/starter.js';
