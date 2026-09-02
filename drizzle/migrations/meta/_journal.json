@@ -19,8 +19,36 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1788336300485,
-      "tag": "0002_rolling_project_snapshot",
+      "when": 1788275620330,
+      "tag": "0002_exotic_calypso",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788277181097,
+      "tag": "0003_brief_sage",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788277312015,
+      "tag": "0004_sparkling_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788289365551,
+      "tag": "0005_first_bucky",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788337000000,
+      "tag": "0006_rolling_project_snapshot",
       "breakpoints": true
     }
   ]

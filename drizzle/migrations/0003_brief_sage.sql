@@ -1,0 +1,1 @@
+CREATE INDEX "generation_jobs_creator_status_idx" ON "generation_jobs" USING btree ("created_by","status");

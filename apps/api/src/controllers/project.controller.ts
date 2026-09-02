@@ -50,6 +50,7 @@ export interface ProjectControllerService {
   update(userId: string, projectId: string, input: UpdateProjectInput): Promise<unknown>;
   remove(userId: string, projectId: string, revision: number): Promise<void>;
   getSource(userId: string, projectId: string): Promise<unknown>;
+  getPreview(userId: string, projectId: string): Promise<unknown>;
   saveSource(userId: string, projectId: string, input: SaveProjectSourceInput): Promise<unknown>;
 }
 
@@ -88,6 +89,11 @@ export class ProjectController {
   getSource = async (request: AuthenticatedRequest, response: Response) => {
     const projectId = idSchema.parse(request.params.projectId);
     response.json({ data: await this.projects.getSource(request.principal!.user.id, projectId) });
+  };
+
+  getPreview = async (request: AuthenticatedRequest, response: Response) => {
+    const projectId = idSchema.parse(request.params.projectId);
+    response.json({ data: await this.projects.getPreview(request.principal!.user.id, projectId) });
   };
 
   saveSource = async (request: AuthenticatedRequest, response: Response) => {

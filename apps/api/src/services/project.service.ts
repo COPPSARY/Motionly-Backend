@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { AppError } from '../errors.js';
 import type { WorkspaceRole } from './workspace.service.js';
+import { bundleProjectPreview } from './project-preview.service.js';
 
 export const PROJECT_SOURCE_PATHS = ['composition.html', 'styles.css', 'timeline.js', 'index.ts'] as const;
 
@@ -105,6 +106,15 @@ export class ProjectService {
     const source = await this.repository.getCurrentSource(projectId);
     if (!source) throw new AppError(409, 'PROJECT_SOURCE_MISSING', 'The project does not have a saved source snapshot.');
     return { ...source, revision: access.project.revision };
+  }
+
+  async getPreview(userId: string, projectId: string) {
+    const source = await this.getSource(userId, projectId);
+    const preview = await bundleProjectPreview(source.files);
+    return {
+      sourceHash: source.sourceHash,
+      ...preview,
+    };
   }
 
   async saveSource(userId: string, projectId: string, input: SaveProjectSourceInput) {

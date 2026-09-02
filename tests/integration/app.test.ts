@@ -34,12 +34,38 @@ function dependencies() {
     },
     projects: {
       list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(),
-      getSource: vi.fn(), saveSource: vi.fn(),
+      getSource: vi.fn(), getPreview: vi.fn(), saveSource: vi.fn(),
     },
   };
 }
 
 describe('Motionly API', () => {
+  it('reports dependency-aware readiness without exposing the failure', async () => {
+    const ready = createApp({
+      services: dependencies(), frontendOrigins: ['http://localhost:5173'], secureCookies: false,
+      readiness: vi.fn().mockResolvedValue(undefined),
+    });
+    expect((await request(ready).get('/ready')).body).toEqual({ status: 'ready' });
+
+    const unavailable = createApp({
+      services: dependencies(), frontendOrigins: ['http://localhost:5173'], secureCookies: false,
+      readiness: vi.fn().mockRejectedValue(new Error('postgresql://secret-host')),
+    });
+    const response = await request(unavailable).get('/ready');
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ status: 'not_ready' });
+    expect(JSON.stringify(response.body)).not.toContain('secret-host');
+  });
+
+  it('publishes the provider-neutral OpenAPI contract', async () => {
+    const app = createApp({ services: dependencies(), frontendOrigins: ['http://localhost:5173'], secureCookies: false });
+    const response = await request(app).get('/openapi.json');
+    expect(response.status).toBe(200);
+    expect(response.body.openapi).toBe('3.1.0');
+    expect(response.body.paths).toHaveProperty('/v1/projects/{projectId}/generations');
+    expect(JSON.stringify(response.body)).not.toContain('GEMINI_API_KEY');
+  });
+
   it('accepts email registration at the top-level sign-up route', async () => {
     const deps = dependencies();
     const app = createApp({

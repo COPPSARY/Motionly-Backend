@@ -1,0 +1,1 @@
+ALTER TABLE "assets" ADD COLUMN "upload_expires_at" timestamp with time zone;

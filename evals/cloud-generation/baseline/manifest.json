@@ -1,0 +1,27 @@
+{
+  "name": "motionly-product-promo",
+  "capturedAt": "2026-09-01T00:00:00.000Z",
+  "frontendVersion": "2.0.0",
+  "frontendCommit": "d4deb89164310de20edf796d702cb841692d93b6",
+  "runtimeVersion": "2.0.0",
+  "skillBundleVersion": "1.0.0",
+  "chromeVersion": "151.0.7922.175",
+  "ffmpegVersion": "9.0.1",
+  "sourceHashes": {
+    "composition.html": "751884f82ebc7f4a8a22e1d0228d1635034b003ac5b685145921f02551dec663",
+    "timeline.js": "a9807d1d553f3320cd2e69a6a0761051e957575d939d122c7ad7c9c859162e1c",
+    "index.ts": "e97e3d2e9319cd15020fa0203cc21a430ede3c35b3d4dc789591155d5c0232ee",
+    "frontendRuntime": "900baedcd49421d1f88a58ffc2150e137f37d36529981a6b2647e55cda1c4403",
+    "frontendHelpers": "bdc60cc571c63d5fc98a4741c261ff60b273395869fc9a64c4999728e867ed01",
+    "frontendSkill": "9d18b61e9d578c34d1cac6cb316b5ac9bfa56fefa12a280200dc3180d8f5648c"
+  },
+  "reference": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "durationSeconds": 39,
+    "sceneIds": ["problem", "intro", "choice", "product", "cta"],
+    "requiredLayerIds": ["editorial-beat-1-text", "intro-brand-name", "face-prompt", "product-screenshot", "final-headline", "final-cta"]
+  },
+  "note": "Hashes pin the reviewed frontend reference. Production generation workers use only backend-owned runtime and skill bundles."
+}

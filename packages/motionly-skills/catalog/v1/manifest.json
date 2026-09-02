@@ -1,0 +1,185 @@
+{
+    "version":  "1.0.0",
+    "runtimeRange":  "\u003e=2.0.0 \u003c3.0.0",
+    "source":  "Motionly frontend skills, preset helpers, and product-promo quality reference; reviewed and split for backend routing",
+    "sourceVersion":  "2.0.0",
+    "skills":  [
+                   {
+                       "id":  "core",
+                       "file":  "core.md",
+                       "tags":  [
+                                    "core"
+                                ],
+                       "sha256":  "ef0a0f706c240fa45cbde91d12726ccbac3dc7c50889c6eb3cd52bef342dc3c9"
+                   },
+                   {
+                       "id":  "helpers",
+                       "file":  "helpers.md",
+                       "tags":  [
+                                    "core",
+                                    "gsap",
+                                    "helper",
+                                    "preset"
+                                ],
+                       "sha256":  "e3bda4f1a4effcfcdfbb2d37fa6751f3d2fc7b3d24e7c60e8bf07a57c3624ba9"
+                   },
+                   {
+                       "id":  "quality-reference",
+                       "file":  "quality-reference.md",
+                       "tags":  [
+                                    "core",
+                                    "quality",
+                                    "composition",
+                                    "create",
+                                    "edit"
+                                ],
+                       "sha256":  "6cc2ff66df35a22a5889181da3c5e32201267365c9950d20674ee3a38f9c7db5"
+                   },
+                   {
+                       "id":  "code-authoring",
+                       "file":  "code-authoring.md",
+                       "tags":  [
+                                    "code",
+                                    "html",
+                                    "gsap"
+                                ],
+                       "sha256":  "be82799430fbb72740eea22c1a01f8d2be89945f5609651268d101345234ffb4"
+                   },
+                   {
+                       "id":  "timeline",
+                       "file":  "timeline.md",
+                       "tags":  [
+                                    "timeline",
+                                    "timing",
+                                    "retime",
+                                    "duration"
+                                ],
+                       "sha256":  "f3c88b49ad8f0b788d0d8a1307fc088684a7df9a3c80861613dfcfce21953eb5"
+                   },
+                   {
+                       "id":  "typography",
+                       "file":  "typography.md",
+                       "tags":  [
+                                    "text",
+                                    "copy",
+                                    "title",
+                                    "typography",
+                                    "font"
+                                ],
+                       "sha256":  "c64495c677a2bbfd6de0d3d8c605f670036b72d60dd92b9aa248f2e2ad10b59c"
+                   },
+                   {
+                       "id":  "transitions",
+                       "file":  "transitions.md",
+                       "tags":  [
+                                    "transition",
+                                    "morph",
+                                    "match-cut",
+                                    "particle"
+                                ],
+                       "sha256":  "86026bdaa20dee0f6a866b3d09b6e32a470d7e6220d4acff8bb575855297b8a7"
+                   },
+                   {
+                       "id":  "camera",
+                       "file":  "camera.md",
+                       "tags":  [
+                                    "camera",
+                                    "zoom",
+                                    "pan",
+                                    "push",
+                                    "pull",
+                                    "reframe"
+                                ],
+                       "sha256":  "1a7b777249c5641b32b656c37f20b9219a4eb1eaad079800660eb1214784ad32"
+                   },
+                   {
+                       "id":  "svg",
+                       "file":  "svg.md",
+                       "tags":  [
+                                    "svg",
+                                    "logo",
+                                    "path",
+                                    "mask",
+                                    "stroke"
+                                ],
+                       "sha256":  "8bea4247337263002c59cc4d5466521999874ced2d0882d88c7a99eca65f1016"
+                   },
+                   {
+                       "id":  "assets",
+                       "file":  "assets.md",
+                       "tags":  [
+                                    "asset",
+                                    "image",
+                                    "video",
+                                    "audio",
+                                    "screenshot",
+                                    "media"
+                                ],
+                       "sha256":  "0a44fe350168462eea4a137bd3551e7ae09d94652817cfff1f2b7c76b4aa39b3"
+                   },
+                   {
+                       "id":  "rendering",
+                       "file":  "rendering.md",
+                       "tags":  [
+                                    "render",
+                                    "export",
+                                    "preview",
+                                    "chromium",
+                                    "frame"
+                                ],
+                       "sha256":  "69aa3de30242b0fb662f18399c85e5485b8cea0c3e546f92ee8e4767db917adb"
+                   },
+                   {
+                       "id":  "small-edits",
+                       "file":  "small-edits.md",
+                       "tags":  [
+                                    "edit",
+                                    "text",
+                                    "color",
+                                    "font",
+                                    "spacing",
+                                    "style",
+                                    "simple",
+                                    "animation",
+                                    "add"
+                                ],
+                       "sha256":  "576ead2ac86e117a5aaa217c129e6d64c483336b3a5dfbe93c6b5f55a891b1b9"
+                   },
+                   {
+                       "sha256":  "8e702528f98a1b7876344850870584e9c1d60f1f9f71a319b96f02f395890516",
+                       "tags":  [
+                                    "marketing",
+                                    "copywriting",
+                                    "strategy",
+                                    "sales",
+                                    "video"
+                                ],
+                       "id":  "marketing",
+                       "file":  "marketing.md"
+                   },
+                   {
+                       "id":  "story-timing",
+                       "file":  "story-timing.md",
+                       "tags":  [
+                                    "story"
+                                ],
+                       "sha256":  "13aa87fa4de74859697d3b88767b917023a01a03c03179dd214b69d769ebab8c"
+                   },
+                   {
+                       "id":  "transitions-camera",
+                       "file":  "transitions-camera.md",
+                       "tags":  [
+                                    "transitions"
+                                ],
+                       "sha256":  "2a0570f972b846046bed51130142097796c4622d8fa97f219d9b361d290957cd"
+                   },
+                   {
+                       "id":  "typography-backgrounds",
+                       "file":  "typography-backgrounds.md",
+                       "tags":  [
+                                    "typography"
+                                ],
+                       "sha256":  "847a32bea8f66af771ed7ff7545d3798467dfde60b3e01c0cd7691c334841d08"
+                   }
+               ]
+}
