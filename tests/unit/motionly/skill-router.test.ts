@@ -21,6 +21,16 @@ describe('Motionly skill bundle', () => {
     expect(selected.map((skill) => skill.id)).toEqual(expect.arrayContaining(expected));
   });
 
+  it('always gives new compositions quality, authoring, and typography guidance', async () => {
+    const selected = routeSkills(await loadSkillBundle(), {
+      prompt: 'Create a product launch animation',
+      intent: 'CREATE',
+    });
+    expect(selected.map((skill) => skill.id)).toEqual(expect.arrayContaining([
+      'core', 'quality-reference', 'code-authoring', 'typography',
+    ]));
+  });
+
   it('respects the bundle character budget', async () => {
     const bundle = await loadSkillBundle();
     const requiredLength = bundle.skills.filter((skill) => ['core', 'assets', 'camera'].includes(skill.id))
