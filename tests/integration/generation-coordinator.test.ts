@@ -81,6 +81,8 @@ describe('GenerationCoordinator', () => {
 
     expect(provider.inputs).toHaveLength(1);
     expect(provider.inputs[0]!.prompt).toContain('--- composition.html ---');
+    expect(provider.inputs[0]!.prompt).toContain('Motionly production brief:');
+    expect(provider.inputs[0]!.prompt).toContain('giant-to-readable zoom or slide entrances');
     expect(provider.inputs[0]!.systemInstructions).toContain('vendored Motionly promo reference');
     expect(provider.inputs[0]!.systemInstructions).toContain('Reference: motionly-promo/composition.html');
     expect(provider.inputs[0]!.tools).toHaveLength(1);

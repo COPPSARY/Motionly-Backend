@@ -6,6 +6,7 @@ import { bundleProjectPreview } from '../../api/src/services/project-preview.ser
 import { PROJECT_SOURCE_PATHS, type ProjectSourceFiles, type ProjectSourcePath, hashSourceFiles } from '../../api/src/services/project.service.js';
 import type { GenerationModelProvider, ModelResponse, ModelToolDefinition } from '../../../packages/ai-providers/src/types.js';
 import { loadSkillBundle } from '../../../packages/motionly-skills/src/loader.js';
+import { enhanceMotionlyPrompt } from '../../../packages/motionly-skills/src/prompt-enhancer.js';
 import { routeSkills } from '../../../packages/motionly-skills/src/router.js';
 import type { GenerationJobContext, WorkerGenerationStore } from './repository.js';
 
@@ -61,8 +62,9 @@ export class GenerationCoordinator {
     });
 
     const bundle = await loadSkillBundle();
+    const enhancedPrompt = enhanceMotionlyPrompt(context.prompt, context.job.intent);
     const routedSkills = routeSkills(bundle, {
-      prompt: context.prompt,
+      prompt: enhancedPrompt,
       intent: context.job.intent,
       maxCharacters: 12_000,
     });
@@ -83,7 +85,7 @@ export class GenerationCoordinator {
       const response = await this.provider.generate({
         model: context.job.model,
         systemInstructions: buildSystemInstructions(routedSkills, presetReference),
-        prompt: buildPrompt(context, repairFeedback),
+        prompt: buildPrompt(context, enhancedPrompt, repairFeedback),
         tools: [changedFilesTool],
         limits: {
           maxOutputTokens: this.options.maxOutputTokens ?? 8_000,
@@ -170,9 +172,9 @@ async function loadPromoReference(): Promise<string> {
   ].join('\n\n');
 }
 
-function buildPrompt(context: GenerationJobContext, repairFeedback = ''): string {
+function buildPrompt(context: GenerationJobContext, enhancedPrompt: string, repairFeedback = ''): string {
   return [
-    `User request:\n${context.prompt}`,
+    enhancedPrompt,
     ...(repairFeedback ? ['', repairFeedback] : []),
     '',
     'Current files:',
