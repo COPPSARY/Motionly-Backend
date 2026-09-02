@@ -132,7 +132,7 @@ function buildSystemInstructions(skills: ReturnType<typeof routeSkills>, presetR
     'Make exactly one tool call to return_changed_files. Return only changed files, not the full project.',
     'Only these files may be edited: composition.html, styles.css, timeline.js, index.ts.',
     'Preserve unrelated source exactly.',
-    'For CREATE requests, preserve and extend the visual system: return meaningful semantic HTML, substantial CSS styling, intentional typography and placement, and real GSAP timeline choreography. Never replace a composition with plain text or leave styles.css empty.',
+    'For CREATE requests, preserve and extend the visual system: return meaningful semantic HTML, substantial CSS styling, intentional typography and placement, multiple connected scenes, and real GSAP choreography including at least one persistent shape morph or match-cut. Never replace a composition with plain text or leave styles.css empty.',
     presetReference ? 'The following is the vendored Motionly promo reference. Learn from its implementation and copy/adapt its composition patterns when useful. Replace its branding, exact copy, assets, and timings with the user request; do not import from the reference directory.' : '',
     '',
     presetReference,
@@ -216,6 +216,9 @@ function assertCreateQuality(context: GenerationJobContext, files: ProjectSource
   }
   if (!/\.fromTo\s*\(|\.to\s*\(|\.from\s*\(|\.set\s*\(/.test(files['timeline.js'])) {
     throw generationError('SOURCE_QUALITY_INVALID', 'New compositions must include authored GSAP timeline motion.');
+  }
+  if (!/borderRadius|morph\s*\(|match[- ]?cut/i.test(`${files['composition.html']}\n${files['styles.css']}\n${files['timeline.js']}`)) {
+    throw generationError('SOURCE_QUALITY_INVALID', 'New compositions must include a shape morph or match-cut transition.');
   }
 }
 

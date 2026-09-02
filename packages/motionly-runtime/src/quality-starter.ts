@@ -96,6 +96,7 @@ export function buildTimeline({ root, timeline, register }) {
   timeline.to(hero, { autoAlpha: 0, y: '-=34', duration: .54, ease: 'power3.in' }, ${Math.max(0.8, duration * .34)});
   timeline.fromTo(proof, { autoAlpha: 0, y: 70, scale: .94 }, { autoAlpha: 1, y: '-=70', scale: 1, duration: .78, ease: 'power4.out' }, ${Math.max(0.9, duration * .36)});
   timeline.fromTo(bars, { scaleY: .2, transformOrigin: 'center bottom' }, { scaleY: 1, duration: .6, stagger: .08, ease: 'back.out(1.4)' }, ${Math.max(1.2, duration * .48)});
+  timeline.to(proof, { width: 'min(60%, 900px)', minHeight: 250, borderRadius: 120, duration: .72, ease: 'power3.inOut' }, ${Math.max(1.6, duration * .6)});
   timeline.to(proof, { autoAlpha: 0, y: '-=28', duration: .5, ease: 'power3.in' }, ${Math.max(1.8, duration * .68)});
   timeline.fromTo(closing, { autoAlpha: 0, scale: .84, xPercent: -50, yPercent: -50 }, { autoAlpha: 1, scale: 1, duration: .82, ease: 'back.out(1.25)' }, ${Math.max(2.2, duration * .72)});
   timeline.to(closing, { autoAlpha: 0, scale: 1.04, duration: .5, ease: 'power3.in' }, ${Math.max(2.8, duration * .92)});
