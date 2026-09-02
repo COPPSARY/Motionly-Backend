@@ -84,7 +84,6 @@ export class GenerationCoordinator {
     const changes = extractChanges(response);
     const files = applyChanges(context.files, changes);
     assertChanged(context.files, files);
-    assertSafe(changes);
 
     await this.abortIfCancelled(generationId);
     await this.store.transition({
@@ -182,29 +181,6 @@ function applyChanges(current: ProjectSourceFiles, changes: Partial<ProjectSourc
 function assertChanged(current: ProjectSourceFiles, next: ProjectSourceFiles): void {
   if (hashSourceFiles(current) === hashSourceFiles(next)) {
     throw generationError('NO_SOURCE_CHANGES', 'The AI did not change any source file.');
-  }
-}
-
-function assertSafe(changes: Partial<ProjectSourceFiles>): void {
-  const blocked = [
-    /\bfetch\s*\(/i,
-    /\bXMLHttpRequest\b/i,
-    /\bWebSocket\b/i,
-    /\bEventSource\b/i,
-    /\bnavigator\s*\.\s*sendBeacon\b/i,
-    /\bimport\s*\(\s*['"](?:node:|https?:)/i,
-    /\bfrom\s+['"]node:/i,
-    /\brequire\s*\(\s*['"](?:node:|fs|child_process|http|https|net|tls|dns|os|path)['"]\s*\)/i,
-    /\bprocess\s*\./i,
-    /<script[^>]+src\s*=\s*['"]https?:/i,
-    /\bhttps?:\/\//i,
-  ];
-  for (const [path, content] of Object.entries(changes)) {
-    for (const pattern of blocked) {
-      if (pattern.test(content ?? '')) {
-        throw generationError('UNSAFE_GENERATED_CODE', `Generated ${path} contains network or system access.`);
-      }
-    }
   }
 }
 

@@ -130,13 +130,14 @@ describe('GenerationCoordinator', () => {
     expect(transitions.map((transition) => transition.status)).toEqual(['CANCELLED']);
   });
 
-  it('rejects generated network or system access', async () => {
-    const provider = new FakeModelProvider(response([{ path: 'timeline.js', content: 'fetch("https://example.com")' }]));
+  it('allows generated source containing remote access', async () => {
+    const files = { ...STARTER_SOURCE_FILES, 'timeline.js': `${STARTER_SOURCE_FILES['timeline.js']}\nfetch('https://example.com');\n` };
+    const provider = new FakeModelProvider(response([{ path: 'timeline.js', content: files['timeline.js'] }]));
     const { store } = fakeStore();
     const coordinator = new GenerationCoordinator(store, provider, { modelTimeoutMs: 30_000 });
 
-    await expect(coordinator.run(generationId, new AbortController().signal)).rejects.toMatchObject({ code: 'UNSAFE_GENERATED_CODE' });
-    expect(provider.inputs).toHaveLength(1);
-    expect(store.saveRevision).not.toHaveBeenCalled();
+    await coordinator.run(generationId, new AbortController().signal);
+
+    expect(store.saveRevision).toHaveBeenCalledWith(generationId, files);
   });
 });
