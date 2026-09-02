@@ -67,6 +67,7 @@ export function createApp(options: AppOptions) {
   const frontendOrigin = options.frontendOrigins[0];
   if (!frontendOrigin) throw new Error('At least one frontend origin is required');
 
+  app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(createRequestLogger(options.logger ?? createLogger({ nodeEnv: 'test', logLevel: 'silent' }), options.nodeEnv ?? 'test'));
