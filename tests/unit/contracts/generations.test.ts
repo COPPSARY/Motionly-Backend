@@ -43,20 +43,18 @@ describe('generation contracts', () => {
 
   it('allows the worker lifecycle and rejects illegal terminal transitions', () => {
     const path = [
-      'QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING',
-      'REVIEWING', 'PUBLISHING', 'COMPLETED',
+      'QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'PUBLISHING', 'COMPLETED',
     ] as const;
     for (let index = 0; index < path.length - 1; index += 1) {
       expect(canTransitionGeneration(path[index]!, path[index + 1]!)).toBe(true);
     }
 
     expect(isTerminalGenerationStatus('COMPLETED')).toBe(true);
-    expect(isTerminalGenerationStatus('REPAIRING')).toBe(false);
+    expect(isTerminalGenerationStatus('GENERATING')).toBe(false);
     expect(() => assertGenerationTransition('COMPLETED', 'GENERATING')).toThrow(
       'Illegal generation transition: COMPLETED -> GENERATING',
     );
-    expect(canTransitionGeneration('AWAITING_APPLY', 'PUBLISHING')).toBe(true);
-    expect(canTransitionGeneration('AWAITING_APPLY', 'COMPLETED')).toBe(true);
-    expect(canTransitionGeneration('GENERATING', 'REPAIRING')).toBe(true);
+    expect(canTransitionGeneration('GENERATING', 'PUBLISHING')).toBe(false);
+    expect(canTransitionGeneration('VALIDATING', 'COMPLETED')).toBe(false);
   });
 });

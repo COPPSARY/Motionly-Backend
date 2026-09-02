@@ -7,22 +7,13 @@ import type { ProjectSourceFiles } from './project.service.js';
 
 const namespace = 'motionly-project';
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
-const runtimeDirectory = path.resolve(sourceDirectory, '../../../../packages/motionly-runtime/src');
-const runtimeEntry = path.join(runtimeDirectory, 'index.ts');
-const presetsEntry = path.join(runtimeDirectory, 'presets.ts');
-const gsapEntry = fileURLToPath(import.meta.resolve('gsap/dist/gsap.js'));
-const compatibilityNamespace = 'motionly-project-compatibility';
-
-const compatibilityModules: Record<string, string> = {
-  'timing.ts': `
-export const MOTIONLY_PROMO_SOURCE_DURATION = 39;
-export const MOTIONLY_PROMO_DURATION = 58.5;
-export const MOTIONLY_PROMO_TIME_SCALE = MOTIONLY_PROMO_SOURCE_DURATION / MOTIONLY_PROMO_DURATION;
-export const MOTIONLY_PROMO_RETIME_FACTOR = MOTIONLY_PROMO_DURATION / MOTIONLY_PROMO_SOURCE_DURATION;
-`,
-  'logo.svg': 'export default "__MOTIONLY_BUILTIN_ASSET_LOGO__";',
-  'ui-screenshot.png': 'export default "__MOTIONLY_BUILTIN_ASSET_UI_SCREENSHOT__";',
-};
+const isCompiled = import.meta.url.endsWith('.js');
+const ext = isCompiled ? '.js' : '.ts';
+const runtimeEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/index${ext}`);
+const runtimeTypesEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/types${ext}`);
+const presetsEntry = path.resolve(sourceDirectory, `../../../../packages/motionly-runtime/src/presets${ext}`);
+const runtimeSourceDirectory = path.dirname(runtimeEntry);
+const gsapEntry = fileURLToPath(import.meta.resolve('gsap'));
 
 export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{ bundle: string; styles: string }> {
   const plugin: Plugin = {
@@ -31,16 +22,20 @@ export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{
       context.onResolve({ filter: /^motionly:entry$/ }, () => ({ path: 'entry.ts', namespace }));
       context.onResolve({ filter: /^@motionly\/runtime$/ }, () => ({ path: runtimeEntry }));
       context.onResolve({ filter: /^@motionly\/presets$/ }, () => ({ path: presetsEntry }));
+      context.onResolve({ filter: /^\.\.\/\.\.\/\.\.\/composition\/(presets|types)$/ }, (args) => ({
+        path: args.path.endsWith('/types') ? runtimeTypesEntry : presetsEntry,
+      }));
+      context.onResolve({ filter: /^\.\/timing$/ }, () => ({ path: 'timing.ts', namespace }));
+      context.onResolve({ filter: /^\.\/(logo\.svg|ui-screenshot\.png)\?url$/ }, (args) => ({
+        path: args.path,
+        namespace,
+      }));
       context.onResolve({ filter: /^gsap$/ }, () => ({ path: gsapEntry }));
-      context.onResolve({ filter: /^\.\/(types|runtime|presets)\.js$/ }, (args) => {
-        if (path.dirname(args.importer) !== runtimeDirectory) return null;
-        return { path: path.resolve(runtimeDirectory, args.path.replace(/\.js$/, '.ts')) };
+      context.onResolve({ filter: /^\.\// }, (args) => {
+        if (!args.importer.startsWith(runtimeSourceDirectory) || !args.path.endsWith('.js')) return null;
+        if (isCompiled) return null;
+        return { path: path.resolve(path.dirname(args.importer), args.path.replace(/\.js$/, '.ts')) };
       });
-      context.onResolve({ filter: /^\.\.\/\.\.\/\.\.\/composition\/types$/, namespace }, () => ({ path: runtimeEntry }));
-      context.onResolve({ filter: /^\.\.\/\.\.\/\.\.\/composition\/presets$/, namespace }, () => ({ path: presetsEntry }));
-      context.onResolve({ filter: /^\.\/timing$/, namespace }, () => ({ path: 'timing.ts', namespace: compatibilityNamespace }));
-      context.onResolve({ filter: /^\.\/logo\.svg\?url$/, namespace }, () => ({ path: 'logo.svg', namespace: compatibilityNamespace }));
-      context.onResolve({ filter: /^\.\/ui-screenshot\.png\?url$/, namespace }, () => ({ path: 'ui-screenshot.png', namespace: compatibilityNamespace }));
       context.onResolve({ filter: /^\.\//, namespace }, (args) => {
         const requested = args.path.slice(2);
         const file = requested.endsWith('?raw') ? requested.slice(0, -4) : requested;
@@ -52,17 +47,13 @@ export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{
       });
       context.onLoad({ filter: /.*/, namespace }, (args) => {
         if (args.path === 'entry.ts') {
-          return {
-            contents: `
-import * as project from './index.ts';
-const projectExports = project as Record<string, unknown>;
-const composition = projectExports['default'] ?? projectExports['composition'] ?? projectExports['motionlyPromoPreset'] ??
-  Object.values(project).find((value) => value && typeof value === 'object' &&
-    typeof value.build === 'function' && Array.isArray(value.scenes));
-export default composition;
-`,
-            loader: 'ts',
-          };
+          return { contents: "export { default } from './index.ts';", loader: 'ts' };
+        }
+        if (args.path === 'timing.ts') {
+          return { contents: 'export const MOTIONLY_PROMO_DURATION = 39;\nexport const MOTIONLY_PROMO_RETIME_FACTOR = 1;\nexport const MOTIONLY_PROMO_TIME_SCALE = 1;', loader: 'ts' };
+        }
+        if (args.path === './logo.svg?url' || args.path === './ui-screenshot.png?url') {
+          return { contents: 'export default "data:,";', loader: 'js' };
         }
         const raw = args.path.endsWith('?raw');
         const file = (raw ? args.path.slice(0, -4) : args.path) as keyof ProjectSourceFiles;
@@ -73,11 +64,6 @@ export default composition;
           contents,
           loader: file.endsWith('.ts') ? 'ts' : file.endsWith('.js') ? 'js' : file.endsWith('.css') ? 'css' : 'text',
         };
-      });
-      context.onLoad({ filter: /.*/, namespace: compatibilityNamespace }, (args) => {
-        const contents = compatibilityModules[args.path];
-        if (contents === undefined) return null;
-        return { contents, loader: 'js' };
       });
     },
   };

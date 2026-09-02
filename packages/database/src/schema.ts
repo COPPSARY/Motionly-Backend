@@ -12,7 +12,6 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 export const workspaceRole = pgEnum('workspace_role', ['owner', 'editor', 'viewer']);
@@ -23,22 +22,15 @@ export const generationStatus = pgEnum('generation_status', [
   'PREPARING',
   'GENERATING',
   'VALIDATING',
-  'RENDERING',
-  'REVIEWING',
-  'REPAIRING',
   'PUBLISHING',
   'CANCELLING',
   'COMPLETED',
-  'AWAITING_APPLY',
   'CANCELLED',
   'FAILED',
 ]);
 export const generationEventType = pgEnum('generation_event_type', [
   'STATUS_CHANGED',
   'PROGRESS',
-  'ATTEMPT_STARTED',
-  'ATTEMPT_COMPLETED',
-  'ARTIFACT_CREATED',
   'COMPLETED',
   'FAILED',
   'CANCELLED',
@@ -169,14 +161,11 @@ export const generationJobs = pgTable('generation_jobs', {
   baseSourceHash: text('base_source_hash').notNull(),
   baseRevision: integer('base_revision').notNull(),
   outputSourceHash: text('output_source_hash'),
-  retriedFromId: uuid('retried_from_id').references((): AnyPgColumn => generationJobs.id, { onDelete: 'set null' }),
   provider: modelProvider('provider').notNull(),
   model: text('model').notNull(),
   skillBundleVersion: text('skill_bundle_version').notNull(),
   runtimeVersion: text('runtime_version').notNull(),
   idempotencyKey: text('idempotency_key').notNull(),
-  attemptCount: integer('attempt_count').default(0).notNull(),
-  maxAttempts: integer('max_attempts').default(3).notNull(),
   cancelRequestedAt: timestamp('cancel_requested_at', { withTimezone: true }),
   startedAt: timestamp('started_at', { withTimezone: true }),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
@@ -192,7 +181,6 @@ export const generationJobs = pgTable('generation_jobs', {
   index('generation_jobs_creator_status_idx').on(table.createdBy, table.status),
   check('generation_jobs_progress_check', sql`${table.progress} between 0 and 100`),
   check('generation_jobs_base_revision_check', sql`${table.baseRevision} >= 1`),
-  check('generation_jobs_attempts_check', sql`${table.attemptCount} >= 0 and ${table.maxAttempts} >= 1`),
 ]);
 
 export const generationInputFiles = pgTable('generation_input_files', {
@@ -215,42 +203,6 @@ export const generationMessages = pgTable('generation_messages', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [index('generation_messages_thread_created_idx').on(table.threadId, table.createdAt)]);
 
-export const generationAttempts = pgTable('generation_attempts', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  generationId: uuid('generation_id').notNull().references(() => generationJobs.id, { onDelete: 'cascade' }),
-  attemptNumber: integer('attempt_number').notNull(),
-  providerRequestId: text('provider_request_id'),
-  finishReason: text('finish_reason'),
-  inputTokens: integer('input_tokens'),
-  outputTokens: integer('output_tokens'),
-  validationSummary: jsonb('validation_summary').$type<Record<string, unknown>>(),
-  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
-  finishedAt: timestamp('finished_at', { withTimezone: true }),
-}, (table) => [
-  uniqueIndex('generation_attempts_job_number_unique').on(table.generationId, table.attemptNumber),
-  check('generation_attempts_number_check', sql`${table.attemptNumber} >= 1`),
-]);
-
-export const generationToolCalls = pgTable('generation_tool_calls', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  generationId: uuid('generation_id').notNull().references(() => generationJobs.id, { onDelete: 'cascade' }),
-  attemptId: uuid('attempt_id').notNull().references(() => generationAttempts.id, { onDelete: 'cascade' }),
-  sequence: integer('sequence').notNull(),
-  toolName: text('tool_name').notNull(),
-  status: text('status').notNull(),
-  inputSummary: jsonb('input_summary').$type<Record<string, unknown>>().notNull(),
-  outputSummary: jsonb('output_summary').$type<Record<string, unknown>>(),
-  errorCode: text('error_code'),
-  durationMs: integer('duration_ms').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  uniqueIndex('generation_tool_calls_attempt_sequence_unique').on(table.attemptId, table.sequence),
-  index('generation_tool_calls_generation_created_idx').on(table.generationId, table.createdAt),
-  check('generation_tool_calls_sequence_check', sql`${table.sequence} >= 1`),
-  check('generation_tool_calls_status_check', sql`${table.status} in ('SUCCEEDED', 'FAILED')`),
-  check('generation_tool_calls_duration_check', sql`${table.durationMs} >= 0`),
-]);
-
 export const generationEvents = pgTable('generation_events', {
   generationId: uuid('generation_id').notNull().references(() => generationJobs.id, { onDelete: 'cascade' }),
   sequence: integer('sequence').notNull(),
@@ -266,26 +218,6 @@ export const generationEvents = pgTable('generation_events', {
   index('generation_events_job_created_idx').on(table.generationId, table.createdAt),
   check('generation_events_sequence_check', sql`${table.sequence} >= 1`),
   check('generation_events_progress_check', sql`${table.progress} between 0 and 100`),
-]);
-
-export const generationOutputs = pgTable('generation_outputs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  generationId: uuid('generation_id').notNull().unique().references(() => generationJobs.id, { onDelete: 'cascade' }),
-  sourceHash: text('source_hash').notNull(),
-  validationReport: jsonb('validation_report').$type<Record<string, unknown>>().notNull(),
-  publishedRevision: integer('published_revision'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  publishedAt: timestamp('published_at', { withTimezone: true }),
-});
-
-export const generationOutputFiles = pgTable('generation_output_files', {
-  generationOutputId: uuid('generation_output_id').notNull().references(() => generationOutputs.id, { onDelete: 'cascade' }),
-  path: text('path').notNull(),
-  content: text('content').notNull(),
-  contentHash: text('content_hash').notNull(),
-}, (table) => [
-  primaryKey({ columns: [table.generationOutputId, table.path] }),
-  check('generation_output_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
 ]);
 
 export const assets = pgTable('assets', {
@@ -317,7 +249,6 @@ export const artifacts = pgTable('artifacts', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   generationId: uuid('generation_id').references(() => generationJobs.id, { onDelete: 'cascade' }),
-  attemptId: uuid('attempt_id').references(() => generationAttempts.id, { onDelete: 'set null' }),
   kind: artifactKind('kind').notNull(),
   retention: artifactRetention('retention').notNull(),
   contentType: text('content_type').notNull(),

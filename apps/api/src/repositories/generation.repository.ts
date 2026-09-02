@@ -8,8 +8,6 @@ import {
   generationInputFiles,
   generationJobs,
   generationMessages,
-  generationOutputFiles,
-  generationOutputs,
   generationThreads,
   assets,
   projectAssets,
@@ -20,7 +18,6 @@ import {
 } from '../../../../packages/database/src/schema.js';
 import type { GenerationRecord, GenerationRepository } from '../services/generation.service.js';
 import { hashSourceFiles, PROJECT_SOURCE_PATHS, type ProjectSourceFiles } from '../services/project.service.js';
-import { projectSettingsFromValidation } from '../../../../packages/generation-tools/src/validation-report.js';
 import { AppError } from '../errors.js';
 
 function projectFileRows(projectId: string, files: ProjectSourceFiles) {
@@ -182,7 +179,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
   async requestCancellation(generationId: string) {
     return this.db.transaction(async (transaction) => {
       const [job] = await transaction.select().from(generationJobs).where(eq(generationJobs.id, generationId)).for('update').limit(1);
-      if (!job || ['COMPLETED', 'AWAITING_APPLY', 'CANCELLED', 'FAILED'].includes(job.status)) return null;
+      if (!job || ['COMPLETED', 'CANCELLED', 'FAILED'].includes(job.status)) return null;
       if (job.status === 'CANCELLING') return job as GenerationRecord;
       const now = new Date();
       const [updated] = await transaction.update(generationJobs).set({
@@ -196,41 +193,6 @@ export class DatabaseGenerationRepository implements GenerationRepository {
     });
   }
 
-  async getLatestUserMessage(generationId: string) {
-    const [message] = await this.db.select({ content: generationMessages.content, assetIds: generationMessages.assetRefs }).from(generationMessages)
-      .where(and(eq(generationMessages.generationId, generationId), eq(generationMessages.role, 'user')))
-      .orderBy(desc(generationMessages.createdAt)).limit(1);
-    return message ?? null;
-  }
-
-  async createRetryGeneration(input: Parameters<GenerationRepository['createRetryGeneration']>[0]) {
-    try {
-      return await this.db.transaction(async (transaction) => {
-        const transactionDb = transaction as unknown as Database;
-        await lockGenerationSubmissions(transactionDb, input.userId);
-        const duplicate = await findIdempotent(transactionDb, input.userId, input.idempotencyKey);
-        if (duplicate) return duplicate;
-        await assertGenerationCapacity(transactionDb, input.userId, input.defaults.maxActivePerUser);
-        return this.insertGeneration(transactionDb, {
-          userId: input.userId,
-          workspaceId: input.workspaceId,
-          projectId: input.projectId,
-          threadId: input.threadId,
-          intent: 'EDIT',
-          prompt: input.prompt,
-          assetIds: input.assetIds,
-          baseSourceHash: input.baseSourceHash,
-          baseRevision: input.baseRevision,
-          idempotencyKey: input.idempotencyKey,
-          defaults: input.defaults,
-          retriedFromId: input.originalGenerationId,
-        });
-      });
-    } catch (error) {
-      return this.resolveIdempotencyRace(error, input.userId, input.idempotencyKey);
-    }
-  }
-
   async listEvents(generationId: string, afterSequence: number) {
     return this.db.select().from(generationEvents).where(and(
       eq(generationEvents.generationId, generationId),
@@ -238,45 +200,10 @@ export class DatabaseGenerationRepository implements GenerationRepository {
     )).orderBy(generationEvents.sequence).limit(500);
   }
 
-  async applyCandidate(generationId: string, _userId: string, revision: number) {
-    return this.db.transaction(async (transaction) => {
-      const [job] = await transaction.select().from(generationJobs).where(eq(generationJobs.id, generationId)).for('update').limit(1);
-      if (!job || job.status !== 'AWAITING_APPLY') return null;
-      const [project] = await transaction.select().from(projects).where(and(
-        eq(projects.id, job.projectId), eq(projects.revision, revision), isNull(projects.archivedAt),
-      )).for('update').limit(1);
-      if (!project) return null;
-      const [output] = await transaction.select().from(generationOutputs).where(eq(generationOutputs.generationId, generationId)).limit(1);
-      if (!output) throw new Error('Generation output not found.');
-      const projectSettings = projectSettingsFromValidation(output.validationReport);
-      const files = await transaction.select().from(generationOutputFiles).where(eq(generationOutputFiles.generationOutputId, output.id));
-      if (files.length !== PROJECT_SOURCE_PATHS.length) throw new Error('Generation output source bundle is incomplete.');
-      const nextRevision = project.revision + 1;
-      const now = new Date();
-      await transaction.delete(projectFiles).where(eq(projectFiles.projectId, project.id));
-      await transaction.insert(projectFiles).values(files.map((file) => ({
-        projectId: project.id, path: file.path, content: file.content, contentHash: file.contentHash, updatedAt: now,
-      })));
-      await transaction.update(projects).set({
-        sourceHash: output.sourceHash, revision: nextRevision, updatedAt: now, savedAt: now, ...projectSettings,
-      }).where(eq(projects.id, project.id));
-      await transaction.update(generationOutputs).set({ publishedRevision: nextRevision, publishedAt: now }).where(eq(generationOutputs.id, output.id));
-      await transaction.update(generationJobs).set({
-        status: 'COMPLETED', stage: 'COMPLETED', progress: 100, outputSourceHash: output.sourceHash,
-        errorCode: null, errorMessage: null, errorDetails: null, finishedAt: now, updatedAt: now,
-      }).where(eq(generationJobs.id, generationId));
-      await appendGenerationEvent(transaction as unknown as Database, {
-        generationId, type: 'COMPLETED', status: 'COMPLETED', stage: 'COMPLETED', progress: 100,
-        message: 'Conflicting candidate explicitly applied.', data: { outputSourceHash: output.sourceHash, projectRevision: nextRevision },
-      });
-      return { sourceHash: output.sourceHash, revision: nextRevision };
-    });
-  }
-
   async countActiveForUser(userId: string) {
     const [row] = await this.db.select({ value: count() }).from(generationJobs).where(and(
       eq(generationJobs.createdBy, userId),
-      inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'REPAIRING', 'PUBLISHING', 'CANCELLING']),
+      inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'PUBLISHING', 'CANCELLING']),
     ));
     return row?.value ?? 0;
   }
@@ -301,7 +228,6 @@ export class DatabaseGenerationRepository implements GenerationRepository {
     baseRevision: number;
     idempotencyKey: string;
     defaults: Parameters<GenerationRepository['createEditGeneration']>[0]['defaults'];
-    retriedFromId?: string;
   }): Promise<GenerationRecord> {
     const [baseProject] = await db.select({ revision: projects.revision, sourceHash: projects.sourceHash })
       .from(projects).where(and(eq(projects.id, input.projectId), isNull(projects.archivedAt))).for('update').limit(1);
@@ -340,8 +266,6 @@ export class DatabaseGenerationRepository implements GenerationRepository {
       skillBundleVersion: input.defaults.skillBundleVersion,
       runtimeVersion: input.defaults.runtimeVersion,
       idempotencyKey: input.idempotencyKey,
-      maxAttempts: input.defaults.maxAttempts,
-      ...(input.retriedFromId ? { retriedFromId: input.retriedFromId } : {}),
     }).returning();
     if (!job) throw new Error('Unable to create generation job');
 
@@ -375,7 +299,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
     await db.insert(queueTasks).values({
       type: 'GENERATION',
       resourceId: job.id,
-      maxAttempts: input.defaults.maxAttempts,
+      maxAttempts: 1,
     });
     return job as GenerationRecord;
   }
@@ -406,7 +330,7 @@ async function appendGenerationEvent(db: Database, input: Omit<typeof generation
 async function assertGenerationCapacity(db: Database, userId: string, limit: number) {
   const [row] = await db.select({ value: count() }).from(generationJobs).where(and(
     eq(generationJobs.createdBy, userId),
-    inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'REPAIRING', 'PUBLISHING', 'CANCELLING']),
+    inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'PUBLISHING', 'CANCELLING']),
   ));
   if ((row?.value ?? 0) >= limit) throw new AppError(429, 'GENERATION_LIMIT_EXCEEDED', 'Too many active generation jobs.', { limit });
 }

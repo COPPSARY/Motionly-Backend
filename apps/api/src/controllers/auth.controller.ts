@@ -91,8 +91,7 @@ export class AuthController {
   };
 
   private setSessionCookies(response: Response, sessionToken: string, csrfToken: string) {
-    const sameSite: 'lax' | 'none' = this.secureCookies ? 'none' : 'lax';
-    const common = { secure: this.secureCookies, sameSite, path: '/' };
+    const common = { secure: this.secureCookies, sameSite: 'lax' as const, path: '/' };
     const maxAge = 30 * 24 * 60 * 60 * 1000;
     response.cookie(SESSION_COOKIE, sessionToken, { ...common, httpOnly: true, maxAge });
     response.cookie(CSRF_COOKIE, csrfToken, { ...common, httpOnly: false, maxAge });

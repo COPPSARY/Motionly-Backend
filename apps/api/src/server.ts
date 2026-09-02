@@ -67,7 +67,6 @@ export function createApp(options: AppOptions) {
   const frontendOrigin = options.frontendOrigins[0];
   if (!frontendOrigin) throw new Error('At least one frontend origin is required');
 
-  app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(createRequestLogger(options.logger ?? createLogger({ nodeEnv: 'test', logLevel: 'silent' }), options.nodeEnv ?? 'test'));
@@ -140,7 +139,6 @@ export async function startServer() {
   const generations = new GenerationService(new DatabaseGenerationRepository(db), {
     provider: environment.aiProvider,
     model: environment.aiModel,
-    maxAttempts: environment.generationMaxAttempts,
     maxActivePerUser: environment.generationMaxActivePerUser,
   });
   const objectStorage = await LocalFilesystemObjectStorage.create(path.resolve(environment.objectStorageLocalRoot));

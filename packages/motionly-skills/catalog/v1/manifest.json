@@ -10,7 +10,24 @@
                        "tags":  [
                                     "core"
                                 ],
-                       "sha256":  "289456c5e4e3b695c3e5e81f1a501f4f922a1e29de8931c35b1415453cf7fcda"
+                       "sha256":  "ef0a0f706c240fa45cbde91d12726ccbac3dc7c50889c6eb3cd52bef342dc3c9"
+                   },
+                   {
+                       "id":  "write-motionly",
+                       "file":  "write-motionly.md",
+                       "tags":  [
+                                    "create",
+                                    "edit",
+                                    "composition",
+                                    "html",
+                                    "css",
+                                    "gsap",
+                                    "animation",
+                                    "typography",
+                                    "layout",
+                                    "style"
+                                ],
+                       "sha256":  "3145d339d7e5727372d0b98e1eb59c6d17cf426b99f158d941a7f64973e7e0fa"
                    },
                    {
                        "id":  "helpers",
@@ -21,7 +38,7 @@
                                     "helper",
                                     "preset"
                                 ],
-                       "sha256":  "cb172cc7d5bebb8efae2e313dfd763381cc16e802a1b9da0a028288ca6da6e0e"
+                       "sha256":  "e3bda4f1a4effcfcdfbb2d37fa6751f3d2fc7b3d24e7c60e8bf07a57c3624ba9"
                    },
                    {
                        "id":  "quality-reference",
@@ -33,7 +50,7 @@
                                     "create",
                                     "edit"
                                 ],
-                       "sha256":  "ec40745d843cae58e87dacd6fdda0065d9e82395226f56d49a6fcbe79535ff5a"
+                       "sha256":  "6cc2ff66df35a22a5889181da3c5e32201267365c9950d20674ee3a38f9c7db5"
                    },
                    {
                        "id":  "code-authoring",
@@ -43,7 +60,7 @@
                                     "html",
                                     "gsap"
                                 ],
-                       "sha256":  "cdb57249144a289c54ccf474e6b660d2e46db0a9fb28d7e20f02804c670cce29"
+                       "sha256":  "be82799430fbb72740eea22c1a01f8d2be89945f5609651268d101345234ffb4"
                    },
                    {
                        "id":  "timeline",
@@ -54,7 +71,7 @@
                                     "retime",
                                     "duration"
                                 ],
-                       "sha256":  "439135ee345fcffe93820729ea932b39ccb051f3f0fc6a9e4079f60048936eba"
+                       "sha256":  "f3c88b49ad8f0b788d0d8a1307fc088684a7df9a3c80861613dfcfce21953eb5"
                    },
                    {
                        "id":  "typography",
@@ -66,7 +83,7 @@
                                     "typography",
                                     "font"
                                 ],
-                       "sha256":  "98d3418d855c90509576821a299e834bb53360702f6567fc0897406b31ff93bd"
+                       "sha256":  "c64495c677a2bbfd6de0d3d8c605f670036b72d60dd92b9aa248f2e2ad10b59c"
                    },
                    {
                        "id":  "transitions",
@@ -77,7 +94,7 @@
                                     "match-cut",
                                     "particle"
                                 ],
-                       "sha256":  "25136e368b22d9fb3f3136b2e0e940941565c725a29e8f06b7b2b6b00e34c264"
+                       "sha256":  "86026bdaa20dee0f6a866b3d09b6e32a470d7e6220d4acff8bb575855297b8a7"
                    },
                    {
                        "id":  "camera",
@@ -90,7 +107,7 @@
                                     "pull",
                                     "reframe"
                                 ],
-                       "sha256":  "2d84e513f6c4509eabd90b77324b25833b1c985b398925bbd041e815bb31d8a5"
+                       "sha256":  "1a7b777249c5641b32b656c37f20b9219a4eb1eaad079800660eb1214784ad32"
                    },
                    {
                        "id":  "svg",
@@ -102,7 +119,7 @@
                                     "mask",
                                     "stroke"
                                 ],
-                       "sha256":  "e0ce549cf3a6d044e51888a8698e6b76c34e59be814abeb43e4eb8bc1a9dc5b4"
+                       "sha256":  "8bea4247337263002c59cc4d5466521999874ced2d0882d88c7a99eca65f1016"
                    },
                    {
                        "id":  "assets",
@@ -115,7 +132,7 @@
                                     "screenshot",
                                     "media"
                                 ],
-                       "sha256":  "921058147eac0074c4ce479115ff1636a323e9c4a9690ac026ab429127dadad7"
+                       "sha256":  "0a44fe350168462eea4a137bd3551e7ae09d94652817cfff1f2b7c76b4aa39b3"
                    },
                    {
                        "id":  "rendering",
@@ -127,7 +144,7 @@
                                     "chromium",
                                     "frame"
                                 ],
-                       "sha256":  "80f8bcc2d2ab0d263b1d7affa485d976e84309b4e7078814817eb8ab40a01246"
+                       "sha256":  "69aa3de30242b0fb662f18399c85e5485b8cea0c3e546f92ee8e4767db917adb"
                    },
                    {
                        "id":  "small-edits",
@@ -143,10 +160,10 @@
                                     "animation",
                                     "add"
                                 ],
-                       "sha256":  "69e88b8af7fa3549a255aee7c2f7ca620701b963b914b589d3f58b27196d71d2"
+                       "sha256":  "291c588185cdb5bf7ff3a73cead3828cdd09c6bca0827993e78cc318e0a9e86e"
                    },
                    {
-                       "sha256":  "d2a538b1b9c732b0aba4240b22bfbf2862c31a6308f0c4b3a69b4186111914c6",
+                       "sha256":  "8e702528f98a1b7876344850870584e9c1d60f1f9f71a319b96f02f395890516",
                        "tags":  [
                                     "marketing",
                                     "copywriting",

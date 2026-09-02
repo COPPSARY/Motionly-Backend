@@ -6,11 +6,8 @@ import {
   editGenerationRequestSchema,
   generationListQuerySchema,
   IDEMPOTENCY_KEY_MAX_LENGTH,
-  applyGenerationRequestSchema,
-  retryGenerationRequestSchema,
   type CreateGenerationRequest,
   type EditGenerationRequest,
-  type RetryGenerationRequest,
 } from '../../../../packages/contracts/src/generations.js';
 import { AppError } from '../errors.js';
 import type { AuthenticatedRequest } from '../types/http.js';
@@ -25,8 +22,6 @@ export interface GenerationControllerService {
   list(userId: string, projectId: string, page: number, pageSize: number): Promise<unknown>;
   get(userId: string, generationId: string): Promise<unknown>;
   cancel(userId: string, generationId: string): Promise<unknown>;
-  retry(userId: string, generationId: string, input: RetryGenerationRequest, idempotencyKey: string): Promise<unknown>;
-  apply(userId: string, generationId: string, revision: number): Promise<unknown>;
   events(userId: string, generationId: string, afterSequence: number): Promise<{
     events: Array<{ sequence: number; type: string; [key: string]: unknown }>;
     isTerminal: boolean;
@@ -75,21 +70,6 @@ export class GenerationController {
     const generationId = idSchema.parse(request.params.generationId);
     idempotencyKey(request);
     response.status(202).json({ data: await this.generations.cancel(request.principal!.user.id, generationId) });
-  };
-
-  retry = async (request: AuthenticatedRequest, response: Response) => {
-    const generationId = idSchema.parse(request.params.generationId);
-    const input = retryGenerationRequestSchema.parse(request.body ?? {});
-    response.status(202).json({
-      data: await this.generations.retry(request.principal!.user.id, generationId, input, idempotencyKey(request)),
-    });
-  };
-
-  apply = async (request: AuthenticatedRequest, response: Response) => {
-    const generationId = idSchema.parse(request.params.generationId);
-    const { revision } = applyGenerationRequestSchema.parse(request.body);
-    idempotencyKey(request);
-    response.status(201).json({ data: await this.generations.apply(request.principal!.user.id, generationId, revision) });
   };
 
   events = async (request: AuthenticatedRequest, response: Response) => {

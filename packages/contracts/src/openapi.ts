@@ -17,14 +17,14 @@ export const openApiDocument = {
       },
       Generation: {
         type: 'object',
-        required: ['id', 'workspaceId', 'projectId', 'threadId', 'intent', 'status', 'stage', 'progress', 'baseSourceHash', 'baseRevision', 'outputSourceHash', 'provider', 'model', 'attempt', 'maxAttempts', 'createdAt', 'startedAt', 'finishedAt', 'error'],
+        required: ['id', 'workspaceId', 'projectId', 'threadId', 'intent', 'status', 'stage', 'progress', 'baseSourceHash', 'baseRevision', 'outputSourceHash', 'provider', 'model', 'createdAt', 'startedAt', 'finishedAt', 'error'],
         properties: {
           id: { type: 'string', format: 'uuid' }, workspaceId: { type: 'string', format: 'uuid' }, projectId: { type: 'string', format: 'uuid' },
           threadId: { type: 'string', format: 'uuid' }, intent: { enum: ['CREATE', 'EDIT'] },
-          status: { enum: ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'COMPLETED', 'AWAITING_APPLY', 'CANCELLED', 'FAILED'] },
+          status: { enum: ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'PUBLISHING', 'CANCELLING', 'COMPLETED', 'CANCELLED', 'FAILED'] },
           stage: { type: 'string' }, progress: { type: 'integer', minimum: 0, maximum: 100 },
           baseSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, baseRevision: { type: 'integer' }, outputSourceHash: { type: ['string', 'null'], pattern: '^[a-f0-9]{64}$' },
-          provider: { enum: ['gemini', 'openai', 'anthropic', 'openai-compatible'] }, model: { type: 'string' }, attempt: { type: 'integer' }, maxAttempts: { type: 'integer' },
+          provider: { enum: ['gemini', 'openai', 'anthropic', 'openai-compatible'] }, model: { type: 'string' },
           createdAt: { type: 'string', format: 'date-time' }, startedAt: { type: ['string', 'null'], format: 'date-time' }, finishedAt: { type: ['string', 'null'], format: 'date-time' },
           error: { oneOf: [{ type: 'null' }, { $ref: '#/components/schemas/GenerationError' }] },
         },
@@ -84,19 +84,6 @@ export const openApiDocument = {
       get: { summary: 'Replay and stream generation events', parameters: [pathId('generationId'), { name: 'Last-Event-ID', in: 'header', schema: { type: 'integer', minimum: 0 } }], responses: { 200: { description: 'text/event-stream', content: { 'text/event-stream': {} } } } },
     },
     '/v1/generations/{generationId}/cancel': actionPath('Cancel a generation', 202),
-    '/v1/generations/{generationId}/retry': actionPath('Retry a generation', 202, jsonBody({
-      type: 'object', additionalProperties: false, properties: {
-        baseSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, baseRevision: { type: 'integer', minimum: 1 },
-      },
-      description: 'Omit both base fields to retry from the latest project revision; otherwise provide both.',
-    })),
-    '/v1/generations/{generationId}/apply': {
-      post: {
-        summary: 'Apply a conflicting candidate', parameters: idempotencyParameters('generationId'),
-        requestBody: jsonBody({ type: 'object', additionalProperties: false, required: ['revision'], properties: { revision: { type: 'integer', minimum: 1 } } }),
-        responses: { 201: applyResponse(), 409: errorResponse(), 429: errorResponse() },
-      },
-    },
     '/v1/generations/{generationId}/artifacts': {
       get: { summary: 'List generation artifacts', parameters: [pathId('generationId')], responses: { 200: { description: 'Artifact list' } } },
     },
@@ -189,29 +176,6 @@ function generationListResponse() {
   } } } } } as const;
 }
 function errorResponse() { return { description: 'Stable API error', content: { 'application/json': { schema: { $ref: '#/components/schemas/ApiError' } } } } as const; }
-function applyResponse() {
-  return {
-    description: 'Applied project revision',
-    content: {
-      'application/json': {
-        schema: {
-          type: 'object',
-          required: ['data'],
-          properties: {
-            data: {
-              type: 'object',
-              required: ['outputSourceHash'],
-              properties: {
-                outputSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-                projectRevision: { type: 'integer', minimum: 1 },
-              },
-            },
-          },
-        },
-      },
-    },
-  } as const;
-}
 function actionPath(summary: string, successStatus: 201 | 202, requestBody?: ReturnType<typeof jsonBody>) {
   return { post: { summary, parameters: idempotencyParameters('generationId'), ...(requestBody ? { requestBody } : {}), responses: { [successStatus]: generationResponse(), 409: errorResponse(), 429: errorResponse() } } } as const;
 }
