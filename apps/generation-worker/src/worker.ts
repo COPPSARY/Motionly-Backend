@@ -7,16 +7,16 @@ import { OpenAICompatibleProvider } from '../../../packages/ai-providers/src/ope
 import { RoutingProvider } from '../../../packages/ai-providers/src/routing-provider.js';
 import { createDatabase } from '../../../packages/database/src/client.js';
 import { PostgresJobQueue } from '../../../packages/job-queue/src/postgres-queue.js';
-import { DockerSandboxRunner } from '../../../packages/sandbox/src/docker-runner.js';
-import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/src/local-filesystem.js';
 import { parseEnvironment } from '../../api/src/config/env.js';
 import { createLogger } from '../../api/src/config/logger.js';
 import { GenerationCoordinator } from './coordinator.js';
 import { DatabaseWorkerGenerationStore } from './repository.js';
-import { DatabaseGenerationArtifactSink } from './artifact-sink.js';
-import { ObjectStorageAssetStager } from './asset-stager.js';
 
-export async function startGenerationWorker() {
+export interface GenerationWorkerOptions {
+  signal?: AbortSignal;
+}
+
+export async function startGenerationWorker(options: GenerationWorkerOptions = {}) {
   const environment = parseEnvironment(process.env);
   if (environment.aiProvider === 'gemini' && !environment.geminiApiKey) throw new Error('GEMINI_API_KEY is required by the generation worker.');
   if (environment.aiProvider === 'openai-compatible' && !environment.openAiCompatibleApiKey) throw new Error('OPENAI_COMPATIBLE_API_KEY is required by the generation worker.');
@@ -52,31 +52,22 @@ export async function startGenerationWorker() {
   
   const workspaceRoot = path.resolve(environment.generationWorkspaceRoot);
   
-  let sandbox: any;
-  if (environment.sandboxMode === 'local') {
-    const { LocalProcessSandboxRunner } = await import('../../../packages/sandbox/src/local-runner.js');
-    sandbox = new LocalProcessSandboxRunner({ workspaceRoot });
-  } else {
-    sandbox = new DockerSandboxRunner({ image: environment.sandboxImage, workspaceRoot });
-  }
-  const objectStorage = await LocalFilesystemObjectStorage.create(path.resolve(environment.objectStorageLocalRoot));
-  const artifactSink = new DatabaseGenerationArtifactSink(db, objectStorage);
-  const assetStager = new ObjectStorageAssetStager(objectStorage);
-  const coordinator = new GenerationCoordinator(store, provider, sandbox, {
+  const coordinator = new GenerationCoordinator(store, provider, {
     workspaceRoot,
     modelTimeoutMs: environment.generationJobTimeoutSeconds * 1_000,
-    sandboxTimeoutMs: environment.generationJobTimeoutSeconds * 1_000,
-    artifactSink,
-    assetStager,
   });
   const workerId = `generation-${randomUUID()}`;
-  const shutdown = new AbortController();
-  process.once('SIGINT', () => shutdown.abort(new Error('Worker stopping.')));
-  process.once('SIGTERM', () => shutdown.abort(new Error('Worker stopping.')));
+  const localShutdown = new AbortController();
+  const shutdownSignal = options.signal ?? localShutdown.signal;
+  const stopWorker = () => localShutdown.abort(new Error('Worker stopping.'));
+  if (!options.signal) {
+    process.once('SIGINT', stopWorker);
+    process.once('SIGTERM', stopWorker);
+  }
   logger.info({ workerId }, 'Motionly generation worker started');
 
   try {
-    while (!shutdown.signal.aborted) {
+    while (!shutdownSignal.aborted) {
       const recovered = await queue.recoverExpired();
       for (const deadTask of recovered.deadTasks) {
         if (deadTask.type === 'GENERATION') {
@@ -85,7 +76,7 @@ export async function startGenerationWorker() {
       }
       const task = await queue.claim(workerId, environment.generationLeaseMs);
       if (!task) {
-        await wait(environment.generationWorkerPollMs, shutdown.signal);
+        await wait(environment.generationWorkerPollMs, shutdownSignal);
         continue;
       }
       if (task.type !== 'GENERATION') {
@@ -94,7 +85,7 @@ export async function startGenerationWorker() {
       }
       const leaseLost = new AbortController();
       const jobSignal = AbortSignal.any([
-        shutdown.signal,
+        shutdownSignal,
         leaseLost.signal,
         AbortSignal.timeout(environment.generationJobTimeoutSeconds * 1_000),
       ]);
@@ -111,7 +102,7 @@ export async function startGenerationWorker() {
         await queue.complete(task.id, workerId);
       } catch (error) {
         const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'GENERATION_FAILED';
-        const interrupted = shutdown.signal.aborted || leaseLost.signal.aborted;
+        const interrupted = shutdownSignal.aborted || leaseLost.signal.aborted;
         const queueStatus = await queue.fail(task.id, workerId, code, interrupted ? undefined : null);
         if (queueStatus === 'DEAD' && interrupted) {
           await store.fail(task.resourceId, 'WORKER_LEASE_EXHAUSTED', 'Generation stopped after repeated worker interruption.');
@@ -122,6 +113,10 @@ export async function startGenerationWorker() {
       }
     }
   } finally {
+    if (!options.signal) {
+      process.off('SIGINT', stopWorker);
+      process.off('SIGTERM', stopWorker);
+    }
     await pool.end();
     logger.info({ workerId }, 'Motionly generation worker stopped');
   }

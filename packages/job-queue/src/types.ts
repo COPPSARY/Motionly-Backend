@@ -1,3 +1,4 @@
+/** `RENDER` is retained only to read historical queue rows. New tasks never use it. */
 export type QueueTaskType = 'GENERATION' | 'RENDER' | 'CLEANUP';
 export type QueueTaskStatus = 'QUEUED' | 'LEASED' | 'COMPLETED' | 'DEAD';
 

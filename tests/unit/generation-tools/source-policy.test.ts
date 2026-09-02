@@ -28,6 +28,14 @@ describe('Motionly source policy and tools', () => {
     expect(report.editableIds).toContain('stage');
   });
 
+  it('rejects network and Node system code in generated source', () => {
+    const network = validateMotionlySource({ ...STARTER_SOURCE_FILES, 'timeline.js': "export { readFile } from 'fs';" });
+    const system = validateMotionlySource({ ...STARTER_SOURCE_FILES, 'index.ts': "fetch('https://example.com'); export default {};" });
+
+    expect(network).toMatchObject({ valid: false });
+    expect(system).toMatchObject({ valid: false });
+  });
+
   it('allows exact patches and rejects traversal, unknown tools, and ambiguous patches', async () => {
     const source = await workspace();
     const tools = new GenerationToolRegistry(source);
@@ -39,5 +47,6 @@ describe('Motionly source policy and tools', () => {
     await expect(source.read('../secret')).rejects.toThrow('not allowed');
     await expect(tools.execute('shell', { command: 'whoami' })).rejects.toThrow('Unknown generation tool');
     await expect(source.applyEdits('composition.html', [{ search: 'motionly', replace: 'x' }])).rejects.toThrow('ambiguous');
+    await expect(source.applyEdits('styles.css', [{ search: '', replace: 'body {}' }])).rejects.toThrow('cannot be empty');
   });
 });

@@ -44,6 +44,7 @@ import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/s
 import { openApiDocument } from '../../../packages/contracts/src/openapi.js';
 import { WorkspaceService } from './services/workspace.service.js';
 import type { SessionResolver } from './types/http.js';
+import { startGenerationWorker } from '../../generation-worker/src/worker.js';
 
 interface AppOptions {
   services: {
@@ -155,13 +156,21 @@ export async function startServer() {
     readiness: async () => { await db.execute(sql`select 1`); },
   });
   const server = createServer(app);
+  const generationWorkerAbort = environment.runGenerationWorker ? new AbortController() : undefined;
+  const generationWorker = generationWorkerAbort
+    ? startGenerationWorker({ signal: generationWorkerAbort.signal }).catch((error) => {
+      logger.error({ errorName: error instanceof Error ? error.name : 'Error' }, 'Embedded generation worker stopped unexpectedly');
+    })
+    : undefined;
 
   server.listen(environment.apiPort, environment.apiHost, () => {
     logger.info({ port: environment.apiPort }, 'Motionly API started');
+    if (generationWorker) logger.info('Embedded generation worker started');
   });
 
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = () => shutdownPromise ??= (async () => {
+    generationWorkerAbort?.abort(new Error('Motionly API stopping.'));
     await new Promise<void>((resolve) => {
       let settled = false;
       const finish = () => {
@@ -178,6 +187,7 @@ export async function startServer() {
       server.close(finish);
       server.closeIdleConnections();
     });
+    await generationWorker;
     await pool.end();
     logger.info('Motionly API stopped');
   })();

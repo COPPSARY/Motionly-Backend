@@ -29,22 +29,16 @@ describe('generation contracts', () => {
     })).toThrow();
   });
 
-  it('rejects create requests that exceed render pixel or frame budgets', () => {
-    expect(() => createGenerationRequestSchema.parse({
-      prompt: 'Create a launch film', project: { name: 'Huge', width: 16_384, height: 16_384, fps: 60, duration: 20 },
-    })).toThrow('renderer safety limit');
-    expect(() => createGenerationRequestSchema.parse({
+  it('accepts project dimensions without video export budgets', () => {
+    expect(createGenerationRequestSchema.parse({
       prompt: 'Create a launch film', project: { name: 'Long', width: 1920, height: 1080, fps: 60, duration: 301 },
-    })).toThrow('18,000-frame export limit');
-    expect(() => createGenerationRequestSchema.parse({
-      prompt: 'Create a launch film', project: { name: 'Expensive', width: 3840, height: 2160, fps: 60, duration: 30 },
-    })).toThrow('pixel-frame render budget');
+    })).toMatchObject({ project: { duration: 301 } });
   });
 
   it('allows the worker lifecycle and rejects illegal terminal transitions', () => {
     const path = [
-      'QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING',
-      'REVIEWING', 'PUBLISHING', 'COMPLETED',
+      'QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'REPAIRING',
+      'GENERATING', 'VALIDATING', 'PUBLISHING', 'COMPLETED',
     ] as const;
     for (let index = 0; index < path.length - 1; index += 1) {
       expect(canTransitionGeneration(path[index]!, path[index + 1]!)).toBe(true);

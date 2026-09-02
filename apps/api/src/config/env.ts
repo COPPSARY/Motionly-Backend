@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { normalizeDatabaseUrl } from '../../../../packages/database/src/connection-url.js';
 
 const booleanString = z.enum(['true', 'false']).optional().transform((value) => (value ?? 'false') === 'true');
+const enabledBooleanString = z.enum(['true', 'false']).optional().transform((value) => (value ?? 'true') === 'true');
 const logLevel = z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional();
 
 const schema = z.object({
@@ -33,13 +34,17 @@ const schema = z.object({
   GENERATION_WORKSPACE_ROOT: z.string().min(1).default('./tmp/generations'),
   GENERATION_WORKER_POLL_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
   GENERATION_LEASE_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
-  SANDBOX_IMAGE: z.string().min(1).default('motionly-renderer:local'),
-  SANDBOX_MODE: z.enum(['docker', 'local']).default('docker'),
+  RUN_GENERATION_WORKER: enabledBooleanString,
   OBJECT_STORAGE_LOCAL_ROOT: z.string().min(1).default('./data/objects'),
 });
 
 export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, string | undefined>) {
-  const parsed = schema.parse(source);
+  const parsed = schema.parse({
+    ...source,
+    // Render and similar platforms provide PORT by convention. API_PORT remains
+    // the explicit application-level override for local and custom deployments.
+    API_PORT: source.API_PORT ?? source.PORT,
+  });
   if (parsed.NODE_ENV === 'production' && !parsed.SESSION_COOKIE_SECURE) {
     throw new Error('SESSION_COOKIE_SECURE must be true in production');
   }
@@ -73,8 +78,7 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     generationWorkspaceRoot: parsed.GENERATION_WORKSPACE_ROOT,
     generationWorkerPollMs: parsed.GENERATION_WORKER_POLL_MS,
     generationLeaseMs: parsed.GENERATION_LEASE_MS,
-    sandboxImage: parsed.SANDBOX_IMAGE,
-    sandboxMode: parsed.SANDBOX_MODE,
+    runGenerationWorker: parsed.RUN_GENERATION_WORKER,
     objectStorageLocalRoot: parsed.OBJECT_STORAGE_LOCAL_ROOT,
   };
 }

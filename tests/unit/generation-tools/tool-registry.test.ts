@@ -13,7 +13,7 @@ const directories: string[] = [];
 afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));
 
 describe('GenerationToolRegistry', () => {
-  it('replaces a file successfully', async () => {
+  it('accepts localized patches but rejects full-file replacement', async () => {
     const workspacePath = await mkdtemp(path.join(tmpdir(), 'motionly-tools-'));
     directories.push(workspacePath);
     await Promise.all(PROJECT_SOURCE_PATHS.map((file) => writeFile(
@@ -23,8 +23,12 @@ describe('GenerationToolRegistry', () => {
     )));
     const tools = new GenerationToolRegistry(await SourceWorkspace.open(workspacePath));
 
-    const result = await tools.execute('replace_project_file', { path: 'composition.html', content: 'hello' });
+    const result = await tools.execute('apply_project_patch', {
+      path: 'composition.html',
+      edits: [{ search: '<main class="motionly-stage" data-edit="stage"></main>', replace: '<main class="motionly-stage" data-edit="stage">Updated</main>' }],
+    });
 
-    expect(result).toMatchObject({ path: 'composition.html', bytes: 5 });
+    expect(result).toMatchObject({ path: 'composition.html', edits: 1 });
+    await expect(tools.execute('replace_project_file', { path: 'composition.html', content: 'hello' })).rejects.toThrow('Unknown generation tool');
   });
 });

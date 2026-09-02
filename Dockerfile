@@ -4,7 +4,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json tsconfig.build.json ./
-COPY apps ./apps
+COPY apps/api ./apps/api
+COPY apps/generation-worker ./apps/generation-worker
 COPY packages ./packages
 RUN npm run build:api
 

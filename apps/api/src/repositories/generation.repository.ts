@@ -276,7 +276,7 @@ export class DatabaseGenerationRepository implements GenerationRepository {
   async countActiveForUser(userId: string) {
     const [row] = await this.db.select({ value: count() }).from(generationJobs).where(and(
       eq(generationJobs.createdBy, userId),
-      inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'REPAIRING', 'PUBLISHING', 'CANCELLING']),
+      inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'REPAIRING', 'PUBLISHING', 'CANCELLING']),
     ));
     return row?.value ?? 0;
   }
@@ -406,7 +406,7 @@ async function appendGenerationEvent(db: Database, input: Omit<typeof generation
 async function assertGenerationCapacity(db: Database, userId: string, limit: number) {
   const [row] = await db.select({ value: count() }).from(generationJobs).where(and(
     eq(generationJobs.createdBy, userId),
-    inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'REPAIRING', 'PUBLISHING', 'CANCELLING']),
+    inArray(generationJobs.status, ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'REPAIRING', 'PUBLISHING', 'CANCELLING']),
   ));
   if ((row?.value ?? 0) >= limit) throw new AppError(429, 'GENERATION_LIMIT_EXCEEDED', 'Too many active generation jobs.', { limit });
 }

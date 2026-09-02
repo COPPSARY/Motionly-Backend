@@ -1,0 +1,22 @@
+# Dependencies and build output are recreated inside the image.
+node_modules
+dist
+coverage
+
+# Never include local configuration or credentials in a Docker build context.
+.env
+.env.*
+!.env.example
+
+# Repository metadata and development-only files.
+.git
+.github
+tests
+docs
+evals
+scripts
+
+# The deployment image contains the HTTP API only.
+apps/web
+apps/renderer
+Dockerfile.renderer

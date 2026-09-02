@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
 export const MAX_GENERATION_ASSET_BYTES = 500_000_000;
-export const MAX_RENDER_PIXEL_FRAMES = 4_000_000_000;
-
 export const generationIntentSchema = z.enum(['CREATE', 'EDIT']);
 export type GenerationIntent = z.infer<typeof generationIntentSchema>;
 
@@ -39,12 +37,10 @@ export function isTerminalGenerationStatus(status: GenerationStatus): boolean {
 const legalTransitions: Readonly<Record<GenerationStatus, ReadonlySet<GenerationStatus>>> = {
   QUEUED: new Set(['PREPARING', 'CANCELLING', 'CANCELLED', 'FAILED']),
   PREPARING: new Set(['GENERATING', 'CANCELLING', 'FAILED']),
-  // Source-only generations skip the expensive build/render/review stages and
-  // publish immediately after the model submits a validated source edit.
   GENERATING: new Set(['PREPARING', 'VALIDATING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'FAILED']),
-  VALIDATING: new Set(['PREPARING', 'RENDERING', 'PUBLISHING', 'REPAIRING', 'CANCELLING', 'FAILED']),
-  RENDERING: new Set(['PREPARING', 'PUBLISHING', 'REVIEWING', 'REPAIRING', 'CANCELLING', 'FAILED']),
-  REVIEWING: new Set(['PREPARING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'FAILED']),
+  VALIDATING: new Set(['PREPARING', 'PUBLISHING', 'REPAIRING', 'CANCELLING', 'FAILED']),
+  RENDERING: new Set(),
+  REVIEWING: new Set(),
   REPAIRING: new Set(['PREPARING', 'GENERATING', 'VALIDATING', 'CANCELLING', 'FAILED']),
   PUBLISHING: new Set(['PREPARING', 'COMPLETED', 'AWAITING_APPLY', 'CANCELLING', 'FAILED']),
   CANCELLING: new Set(['CANCELLED', 'FAILED']),
@@ -80,16 +76,6 @@ const projectSettingsSchema = z.strictObject({
   height: z.number().int().min(1).max(16_384),
   fps: z.number().int().min(1).max(240),
   duration: z.number().positive().max(86_400),
-}).superRefine((project, context) => {
-  if (project.width > 7_680 || project.height > 7_680 || project.width * project.height > 33_177_600) {
-    context.addIssue({ code: 'custom', path: ['width'], message: 'Composition dimensions exceed the renderer safety limit.' });
-  }
-  if (Math.ceil(project.duration * project.fps) > 18_000) {
-    context.addIssue({ code: 'custom', path: ['duration'], message: 'Composition duration and frame rate exceed the 18,000-frame export limit.' });
-  }
-  if (project.width * project.height * Math.ceil(project.duration * project.fps) > MAX_RENDER_PIXEL_FRAMES) {
-    context.addIssue({ code: 'custom', path: ['duration'], message: 'Composition dimensions, duration, and frame rate exceed the pixel-frame render budget.' });
-  }
 });
 
 const promptSchema = z.string().trim().min(1).max(20_000);

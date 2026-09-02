@@ -21,7 +21,7 @@ export const openApiDocument = {
         properties: {
           id: { type: 'string', format: 'uuid' }, workspaceId: { type: 'string', format: 'uuid' }, projectId: { type: 'string', format: 'uuid' },
           threadId: { type: 'string', format: 'uuid' }, intent: { enum: ['CREATE', 'EDIT'] },
-          status: { enum: ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'RENDERING', 'REVIEWING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'COMPLETED', 'AWAITING_APPLY', 'CANCELLED', 'FAILED'] },
+          status: { enum: ['QUEUED', 'PREPARING', 'GENERATING', 'VALIDATING', 'REPAIRING', 'PUBLISHING', 'CANCELLING', 'COMPLETED', 'AWAITING_APPLY', 'CANCELLED', 'FAILED'] },
           stage: { type: 'string' }, progress: { type: 'integer', minimum: 0, maximum: 100 },
           baseSourceHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, baseRevision: { type: 'integer' }, outputSourceHash: { type: ['string', 'null'], pattern: '^[a-f0-9]{64}$' },
           provider: { enum: ['gemini', 'openai', 'anthropic', 'openai-compatible'] }, model: { type: 'string' }, attempt: { type: 'integer' }, maxAttempts: { type: 'integer' },

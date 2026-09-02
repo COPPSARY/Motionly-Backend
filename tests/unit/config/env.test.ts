@@ -33,6 +33,18 @@ describe('parseEnvironment', () => {
     ]);
   });
 
+  it('uses the deployment PORT when API_PORT is not configured', () => {
+    const { API_PORT: _apiPort, ...environmentInput } = valid;
+    const environment = parseEnvironment({ ...environmentInput, PORT: '10000' });
+
+    expect(environment.apiPort).toBe(10000);
+  });
+
+  it('runs the embedded generation worker unless explicitly disabled', () => {
+    expect(parseEnvironment(valid).runGenerationWorker).toBe(true);
+    expect(parseEnvironment({ ...valid, RUN_GENERATION_WORKER: 'false' }).runGenerationWorker).toBe(false);
+  });
+
   it('derives the Supabase Auth URL from a session-pooler database URL', () => {
     const environment = parseEnvironment({
       ...valid,

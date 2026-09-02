@@ -9,7 +9,6 @@ import type { GenerationJobContext, WorkerGenerationStore } from '../../apps/gen
 import { FakeModelProvider } from '../../packages/ai-providers/src/fake-provider.js';
 import { assertGenerationTransition, type GenerationStatus } from '../../packages/contracts/src/generations.js';
 import { STARTER_SOURCE_FILES } from '../../packages/motionly-runtime/src/starter.js';
-import type { SandboxRunner } from '../../packages/sandbox/src/types.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));
@@ -23,8 +22,7 @@ function context(): GenerationJobContext {
       threadId: '00000000-0000-4000-8000-000000000004',
       createdBy: '00000000-0000-4000-8000-000000000005',
       intent: 'EDIT', status: 'QUEUED', stage: 'QUEUED', progress: 0,
-      baseVersionId: '00000000-0000-4000-8000-000000000006', baseRevision: 1,
-      outputVersionId: null, retriedFromId: null, provider: 'gemini', model: 'fake-model',
+      baseSourceHash: 'a'.repeat(64), baseRevision: 1, outputSourceHash: null, retriedFromId: null, provider: 'gemini', model: 'fake-model',
       skillBundleVersion: '1.0.0', runtimeVersion: '2.0.0', idempotencyKey: 'test',
       attemptCount: 0, maxAttempts: 3, cancelRequestedAt: null, startedAt: null, finishedAt: null,
       errorCode: null, errorMessage: null, errorDetails: null,
@@ -63,7 +61,7 @@ function fakeStore(jobContext = context()) {
   return { store, transitions };
 }
 
-const sandbox: SandboxRunner = {
+const sandbox = {
   run: vi.fn(async (request) => ({
     operation: request.operation,
     stdout: JSON.stringify({
@@ -81,7 +79,68 @@ const sandbox: SandboxRunner = {
 };
 
 describe('GenerationCoordinator', () => {
-  it('edits, validates, visually reviews, and publishes an immutable candidate', async () => {
+  it('repairs one failed compile before publishing the changed source revision', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-repair-'));
+    temporaryDirectories.push(workspaceRoot);
+    const provider = new FakeModelProvider([
+      [
+        { type: 'tool_call', id: 'edit-1', name: 'apply_project_patch', arguments: {
+          path: 'composition.html', edits: [{ search: '<main class="motionly-stage" data-edit="stage"></main>', replace: '<main class="motionly-stage" data-edit="stage">Changed</main>' }],
+        } },
+        { type: 'completed', finishReason: 'TOOL_CALL' },
+      ],
+      [{ type: 'completed', finishReason: 'STOP' }],
+      [
+        { type: 'tool_call', id: 'repair-1', name: 'apply_project_patch', arguments: {
+          path: 'timeline.js', edits: [{ search: "register('stage', stage);", replace: "register('stage', stage);\n  timeline.to(stage, { opacity: 1, duration: 0.2 });" }],
+        } },
+        { type: 'completed', finishReason: 'TOOL_CALL' },
+      ],
+      [{ type: 'completed', finishReason: 'STOP' }],
+    ]);
+    const compiler = vi.fn()
+      .mockResolvedValueOnce({ valid: false, diagnostics: 'timeline has an error' })
+      .mockResolvedValueOnce({ valid: true });
+    const { store, transitions } = fakeStore();
+    const coordinator = new GenerationCoordinator(store, provider, sandbox, {
+      workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000, compiler,
+    });
+
+    await coordinator.run(context().job.id, new AbortController().signal);
+
+    expect(compiler).toHaveBeenCalledTimes(2);
+    expect(provider.inputs).toHaveLength(4);
+    expect(JSON.stringify(provider.inputs[2])).toContain('timeline has an error');
+    expect(transitions.map((transition) => transition.status)).toContain('REPAIRING');
+    expect(store.publish).toHaveBeenCalledOnce();
+  });
+
+  it('does not publish when the one allowed compile repair fails', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-repair-failure-'));
+    temporaryDirectories.push(workspaceRoot);
+    const provider = new FakeModelProvider([
+      [{ type: 'tool_call', id: 'edit-1', name: 'apply_project_patch', arguments: {
+        path: 'composition.html', edits: [{ search: '<main class="motionly-stage" data-edit="stage"></main>', replace: '<main class="motionly-stage" data-edit="stage">Changed</main>' }],
+      } }, { type: 'completed', finishReason: 'TOOL_CALL' }],
+      [{ type: 'completed', finishReason: 'STOP' }],
+      [{ type: 'tool_call', id: 'repair-1', name: 'apply_project_patch', arguments: {
+        path: 'timeline.js', edits: [{ search: "register('stage', stage);", replace: "register('stage', stage);\n  timeline.to(stage, { opacity: 1, duration: 0.2 });" }],
+      } }, { type: 'completed', finishReason: 'TOOL_CALL' }],
+      [{ type: 'completed', finishReason: 'STOP' }],
+    ]);
+    const compiler = vi.fn().mockResolvedValue({ valid: false, diagnostics: 'still invalid' });
+    const { store } = fakeStore();
+    const coordinator = new GenerationCoordinator(store, provider, sandbox, {
+      workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000, compiler,
+    });
+
+    await expect(coordinator.run(context().job.id, new AbortController().signal)).rejects.toMatchObject({ code: 'BUILD_FAILED' });
+
+    expect(compiler).toHaveBeenCalledTimes(2);
+    expect(store.publish).not.toHaveBeenCalled();
+  });
+
+  it('edits, compiles, and publishes an immutable candidate', async () => {
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-'));
     temporaryDirectories.push(workspaceRoot);
     const provider = new FakeModelProvider([
@@ -118,7 +177,7 @@ describe('GenerationCoordinator', () => {
     expect(transitions.map((transition) => transition.status)).toEqual(expect.arrayContaining([
       'PREPARING', 'GENERATING', 'VALIDATING', 'PUBLISHING',
     ]));
-    expect(sandbox.run).toHaveBeenCalledWith(expect.objectContaining({ operation: 'validate' }));
+    expect(sandbox.run).not.toHaveBeenCalled();
     expect(await readdir(workspaceRoot)).toEqual([]);
   });
 
@@ -169,46 +228,6 @@ describe('GenerationCoordinator', () => {
     expect(store.fail).toHaveBeenCalledWith(jobContext.job.id, 'ATTEMPT_BUDGET_EXHAUSTED', expect.any(String), undefined);
   });
 
-  it('fails closed when a queued runtime pin is unavailable', async () => {
-    const jobContext = context();
-    jobContext.job.runtimeVersion = '9.0.0';
-    const { store } = fakeStore(jobContext);
-    const localSandbox: SandboxRunner = { run: vi.fn() };
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-runtime-pin-'));
-    temporaryDirectories.push(workspaceRoot);
-    const coordinator = new GenerationCoordinator(store, new FakeModelProvider([]), localSandbox, {
-      workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000,
-    });
-
-    await expect(coordinator.run(jobContext.job.id, new AbortController().signal)).rejects.toMatchObject({ code: 'RUNTIME_VERSION_UNAVAILABLE' });
-    expect(store.fail).toHaveBeenCalledWith(jobContext.job.id, 'RUNTIME_VERSION_UNAVAILABLE', expect.any(String), expect.any(Object));
-    expect(localSandbox.run).not.toHaveBeenCalled();
-  });
-
-  it('rejects an oversized asset set before staging or model execution', async () => {
-    const jobContext = context();
-    jobContext.assets = [{
-      id: '00000000-0000-4000-8000-000000000030',
-      fileName: 'large.mp4',
-      contentType: 'video/mp4',
-      byteSize: 500_000_001,
-      checksum: 'a'.repeat(64),
-      objectKey: 'workspace/assets/large',
-    }];
-    const { store } = fakeStore(jobContext);
-    const localSandbox: SandboxRunner = { run: vi.fn() };
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-asset-budget-'));
-    temporaryDirectories.push(workspaceRoot);
-    const coordinator = new GenerationCoordinator(store, new FakeModelProvider([]), localSandbox, {
-      workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000,
-    });
-
-    await expect(coordinator.run(jobContext.job.id, new AbortController().signal)).rejects.toMatchObject({ code: 'ASSET_BUDGET_EXCEEDED' });
-
-    expect(store.fail).toHaveBeenCalledWith(jobContext.job.id, 'ASSET_BUDGET_EXCEEDED', expect.any(String), expect.objectContaining({ selectedBytes: 500_000_001 }));
-    expect(localSandbox.run).not.toHaveBeenCalled();
-  });
-
   it('does not report worker interruption as user cancellation', async () => {
     const { store, transitions } = fakeStore();
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-interrupt-'));
@@ -247,7 +266,7 @@ describe('GenerationCoordinator', () => {
   });
 
 
-  it('publishes immediately if the AI returns no tool calls', async () => {
+  it('rejects a model response that makes no source change', async () => {
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'motionly-coordinator-fail-'));
     temporaryDirectories.push(workspaceRoot);
     const { store } = fakeStore();
@@ -258,9 +277,9 @@ describe('GenerationCoordinator', () => {
       workspaceRoot, modelTimeoutMs: 30_000, sandboxTimeoutMs: 30_000,
     });
 
-    await coordinator.run(context().job.id, new AbortController().signal);
+    await expect(coordinator.run(context().job.id, new AbortController().signal)).rejects.toMatchObject({ code: 'SOURCE_VALIDATION_FAILED' });
 
-    expect(store.publish).toHaveBeenCalled();
+    expect(store.publish).not.toHaveBeenCalled();
   });
 
 
