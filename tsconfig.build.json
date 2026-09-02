@@ -5,7 +5,6 @@
   },
   "include": [
     "apps/api/src/**/*.ts",
-    "apps/generation-worker/src/**/*.ts",
     "packages/**/*.ts"
   ],
   "exclude": ["**/*.test.ts", "dist", "node_modules", "tests"]

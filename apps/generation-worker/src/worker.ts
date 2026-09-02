@@ -68,7 +68,6 @@ export async function startGenerationWorker() {
     sandboxTimeoutMs: environment.generationJobTimeoutSeconds * 1_000,
     artifactSink,
     assetStager,
-    sourceOnly: true,
   });
   const workerId = `generation-${randomUUID()}`;
   const shutdown = new AbortController();
