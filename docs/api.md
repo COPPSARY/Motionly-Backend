@@ -37,7 +37,7 @@ PATCH  /v1/workspaces/:workspaceId/members/:userId
 DELETE /v1/workspaces/:workspaceId/members/:userId
 ```
 
-## Projects and source versions
+## Projects and rolling source snapshot
 
 ```text
 GET    /v1/workspaces/:workspaceId/projects
@@ -47,14 +47,11 @@ PATCH  /v1/projects/:projectId
 DELETE /v1/projects/:projectId
 GET    /v1/projects/:projectId/source
 PUT    /v1/projects/:projectId/source
-GET    /v1/projects/:projectId/versions
-GET    /v1/projects/:projectId/versions/:versionId
-POST   /v1/projects/:projectId/versions/:versionId/restore
 ```
 
 Source saves include the caller's last-known project revision. When it is stale, the API returns `409 Conflict` so clients can reload or reconcile without silently overwriting another edit.
 
-Creating a project requires its initial source bundle and creates version 1. Saving or restoring source creates a new immutable version and advances the project revision. Deletion is a soft archive and also requires the current revision. Viewers may read projects and versions; workspace owners and editors may mutate them.
+Creating a project stores its initial source snapshot. A changed save atomically replaces that snapshot and advances the project revision. If the submitted source hash is unchanged, the API returns `unchanged: true` without writing or advancing the revision. Deletion is a soft archive and also requires the current revision. Viewers may read projects; workspace owners and editors may mutate them.
 
 ```json
 {
@@ -72,7 +69,7 @@ Creating a project requires its initial source bundle and creates version 1. Sav
 }
 ```
 
-The `files` object is only an HTTP transport envelope for the four canonical authored files. It is not a JSON animation representation. `PATCH`, `PUT`, `DELETE`, and restore requests include `revision`; stale writes return `REVISION_CONFLICT` with `details.currentRevision`.
+The `files` object is only an HTTP transport envelope for the four canonical authored files. It is not a JSON animation representation. `PATCH`, `PUT`, and `DELETE` requests include `revision`; stale writes return `REVISION_CONFLICT` with `details.currentRevision`.
 
 ## Assets
 

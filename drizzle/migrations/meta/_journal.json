@@ -15,6 +15,13 @@
       "when": 1788251295763,
       "tag": "0001_sharp_proemial_gods",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788336300485,
+      "tag": "0002_rolling_project_snapshot",
+      "breakpoints": true
     }
   ]
 }

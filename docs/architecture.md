@@ -4,16 +4,16 @@ Motionly Backend is an optional, provider-independent service for the Motionly e
 
 ## Source of truth
 
-A project consists of four authored source files: `composition.html`, `styles.css`, `timeline.js`, and a thin `index.ts` adapter implementing `CompositionDefinition`. The backend stores those files as an immutable bundle whenever the project is saved. It must not introduce a JSON animation document, a second project representation, an interpreter, or another rendering model.
+A project consists of four authored source files: `composition.html`, `styles.css`, `timeline.js`, and a thin `index.ts` adapter implementing `CompositionDefinition`. The backend stores one rolling snapshot of those files and atomically replaces it after a changed save. It must not introduce a JSON animation document, a second project representation, an interpreter, or another rendering model.
 
-Compilation output is a disposable derived artifact. It can be regenerated from a pinned source version and its dependencies; it is never editable project source.
+Compilation output is a disposable derived artifact. It can be regenerated from a saved source snapshot and its dependencies; it is never editable project source.
 
 ## Processes
 
 The initial deployment is a modular monolith with two processes:
 
-- **API:** authentication, authorization, workspaces, projects, source versions, asset metadata, signed URLs, and render-job submission.
-- **Renderer:** claims queued jobs, compiles a pinned project version in isolation, exports media, stores artifacts, and reports progress.
+- **API:** authentication, authorization, workspaces, projects, rolling source snapshots, asset metadata, signed URLs, and render-job submission.
+- **Renderer:** claims queued jobs, compiles the source snapshot pinned to the job at submission, exports media, stores artifacts, and reports progress.
 
 The renderer is intentionally separate from the API because user-authored source is untrusted and rendering is resource intensive.
 
@@ -24,7 +24,7 @@ Motionly web editor
         v
 Motionly API ----> PostgreSQL
        |             users, workspaces, projects,
-       |             versions, and job state
+       |             source snapshots and job state
        |
        +-----------> S3-compatible object storage
        |             assets and render artifacts
@@ -34,7 +34,7 @@ Motionly API ----> PostgreSQL
 
 ## Boundaries
 
-- PostgreSQL holds relational metadata and immutable project source files, never large binary media.
+- PostgreSQL holds relational metadata and each project's latest source snapshot, never large binary media.
 - S3-compatible storage holds private asset and artifact objects.
 - The queue abstracts durable render-job delivery.
 - Authentication, storage, and queue providers are implemented behind adapters.
