@@ -10,7 +10,7 @@
                        "tags":  [
                                     "core"
                                 ],
-                       "sha256":  "ef0a0f706c240fa45cbde91d12726ccbac3dc7c50889c6eb3cd52bef342dc3c9"
+                       "sha256":  "289456c5e4e3b695c3e5e81f1a501f4f922a1e29de8931c35b1415453cf7fcda"
                    },
                    {
                        "id":  "helpers",
@@ -21,7 +21,7 @@
                                     "helper",
                                     "preset"
                                 ],
-                       "sha256":  "e3bda4f1a4effcfcdfbb2d37fa6751f3d2fc7b3d24e7c60e8bf07a57c3624ba9"
+                       "sha256":  "cb172cc7d5bebb8efae2e313dfd763381cc16e802a1b9da0a028288ca6da6e0e"
                    },
                    {
                        "id":  "quality-reference",
@@ -33,7 +33,7 @@
                                     "create",
                                     "edit"
                                 ],
-                       "sha256":  "6cc2ff66df35a22a5889181da3c5e32201267365c9950d20674ee3a38f9c7db5"
+                       "sha256":  "ec40745d843cae58e87dacd6fdda0065d9e82395226f56d49a6fcbe79535ff5a"
                    },
                    {
                        "id":  "code-authoring",
@@ -43,7 +43,7 @@
                                     "html",
                                     "gsap"
                                 ],
-                       "sha256":  "be82799430fbb72740eea22c1a01f8d2be89945f5609651268d101345234ffb4"
+                       "sha256":  "cdb57249144a289c54ccf474e6b660d2e46db0a9fb28d7e20f02804c670cce29"
                    },
                    {
                        "id":  "timeline",
@@ -54,7 +54,7 @@
                                     "retime",
                                     "duration"
                                 ],
-                       "sha256":  "f3c88b49ad8f0b788d0d8a1307fc088684a7df9a3c80861613dfcfce21953eb5"
+                       "sha256":  "439135ee345fcffe93820729ea932b39ccb051f3f0fc6a9e4079f60048936eba"
                    },
                    {
                        "id":  "typography",
@@ -66,7 +66,7 @@
                                     "typography",
                                     "font"
                                 ],
-                       "sha256":  "c64495c677a2bbfd6de0d3d8c605f670036b72d60dd92b9aa248f2e2ad10b59c"
+                       "sha256":  "98d3418d855c90509576821a299e834bb53360702f6567fc0897406b31ff93bd"
                    },
                    {
                        "id":  "transitions",
@@ -77,7 +77,7 @@
                                     "match-cut",
                                     "particle"
                                 ],
-                       "sha256":  "86026bdaa20dee0f6a866b3d09b6e32a470d7e6220d4acff8bb575855297b8a7"
+                       "sha256":  "25136e368b22d9fb3f3136b2e0e940941565c725a29e8f06b7b2b6b00e34c264"
                    },
                    {
                        "id":  "camera",
@@ -90,7 +90,7 @@
                                     "pull",
                                     "reframe"
                                 ],
-                       "sha256":  "1a7b777249c5641b32b656c37f20b9219a4eb1eaad079800660eb1214784ad32"
+                       "sha256":  "2d84e513f6c4509eabd90b77324b25833b1c985b398925bbd041e815bb31d8a5"
                    },
                    {
                        "id":  "svg",
@@ -102,7 +102,7 @@
                                     "mask",
                                     "stroke"
                                 ],
-                       "sha256":  "8bea4247337263002c59cc4d5466521999874ced2d0882d88c7a99eca65f1016"
+                       "sha256":  "e0ce549cf3a6d044e51888a8698e6b76c34e59be814abeb43e4eb8bc1a9dc5b4"
                    },
                    {
                        "id":  "assets",
@@ -115,7 +115,7 @@
                                     "screenshot",
                                     "media"
                                 ],
-                       "sha256":  "0a44fe350168462eea4a137bd3551e7ae09d94652817cfff1f2b7c76b4aa39b3"
+                       "sha256":  "921058147eac0074c4ce479115ff1636a323e9c4a9690ac026ab429127dadad7"
                    },
                    {
                        "id":  "rendering",
@@ -127,7 +127,7 @@
                                     "chromium",
                                     "frame"
                                 ],
-                       "sha256":  "69aa3de30242b0fb662f18399c85e5485b8cea0c3e546f92ee8e4767db917adb"
+                       "sha256":  "80f8bcc2d2ab0d263b1d7affa485d976e84309b4e7078814817eb8ab40a01246"
                    },
                    {
                        "id":  "small-edits",
@@ -143,10 +143,10 @@
                                     "animation",
                                     "add"
                                 ],
-                       "sha256":  "576ead2ac86e117a5aaa217c129e6d64c483336b3a5dfbe93c6b5f55a891b1b9"
+                       "sha256":  "69e88b8af7fa3549a255aee7c2f7ca620701b963b914b589d3f58b27196d71d2"
                    },
                    {
-                       "sha256":  "8e702528f98a1b7876344850870584e9c1d60f1f9f71a319b96f02f395890516",
+                       "sha256":  "d2a538b1b9c732b0aba4240b22bfbf2862c31a6308f0c4b3a69b4186111914c6",
                        "tags":  [
                                     "marketing",
                                     "copywriting",
