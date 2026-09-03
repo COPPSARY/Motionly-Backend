@@ -1,3 +1,8 @@
+---
+name: transitions
+description: Create continuous Motionly scene handoffs with morphs, match-cuts, or particles.
+---
+
 # Transitions
 
 Maintain visible ownership across scene boundaries with a morph, match-cut, or meaningful particle reassembly. Opacity may clean up internal faces only after continuity exists; a fade, hard cut, wipe, or fade-to-black cannot be the primary handoff.

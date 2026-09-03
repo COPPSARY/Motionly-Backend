@@ -1,3 +1,8 @@
+---
+name: typography-backgrounds
+description: Coordinate editorial type hierarchy with semantic Motionly background systems.
+---
+
 # Typography and background systems
 
 ## One thought, one hierarchy

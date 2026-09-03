@@ -1,3 +1,8 @@
+---
+name: assets
+description: Use supplied project assets safely and preserve their visual fidelity in Motionly compositions.
+---
+
 # Assets
 
 Use only staged assets from the provided manifest. Preserve exact copy, intrinsic aspect ratios, and credible product media. Do not fetch remote URLs at runtime.

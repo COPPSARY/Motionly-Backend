@@ -6,6 +6,7 @@ import { build, type Plugin } from 'esbuild';
 import type { ProjectSourceFiles } from './project.service.js';
 
 const namespace = 'motionly-project';
+const remoteStylesheetNamespace = 'motionly-remote-stylesheet';
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const isCompiled = import.meta.url.endsWith('.js');
 const ext = isCompiled ? '.js' : '.ts';
@@ -42,9 +43,17 @@ export async function bundleProjectPreview(files: ProjectSourceFiles): Promise<{
         if (!(file in files)) return null;
         return { path: requested, namespace };
       });
+      context.onResolve({ filter: /^https?:\/\//, namespace }, () => ({
+        path: 'remote-stylesheet.css',
+        namespace: remoteStylesheetNamespace,
+      }));
       context.onResolve({ filter: /.*/, namespace }, (args) => {
         throw new Error(`Unsupported project preview import: ${args.path}`);
       });
+      context.onLoad({ filter: /.*/, namespace: remoteStylesheetNamespace }, () => ({
+        contents: '',
+        loader: 'css',
+      }));
       context.onLoad({ filter: /.*/, namespace }, (args) => {
         if (args.path === 'entry.ts') {
           return { contents: "export { default } from './index.ts';", loader: 'ts' };

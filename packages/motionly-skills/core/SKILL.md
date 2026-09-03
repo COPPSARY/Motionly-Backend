@@ -1,3 +1,8 @@
+---
+name: core
+description: Apply the core code-first Motionly composition and runtime rules to every generation.
+---
+
 # Motionly generation core
 
 Author a directed product film in semantic HTML/SVG and scoped CSS inside `composition.html`. Put all animation in `timeline.js` and add it to the caller-owned GSAP timeline. Keep `index.ts` limited to metadata, asset substitution, HTML mounting, and one timeline builder call.

@@ -1,3 +1,8 @@
+---
+name: typography
+description: Direct readable full-sentence kinetic typography in Motionly compositions.
+---
+
 # Typography
 
 Express each editorial beat as one bold full-sentence thought. Center the thought as one unit and preserve natural spaces and punctuation. Important statements may enter giant/cropped and settle into focus. Animate words or characters in reading order with restrained stagger and a tactile settle.

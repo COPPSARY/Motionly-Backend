@@ -1,3 +1,8 @@
+---
+name: small-edits
+description: Make focused, minimal source changes for narrow Motionly edit requests.
+---
+
 # Small Motionly edits
 
 Use this skill for narrow requests such as changing text, color, font size, spacing, visibility, adding one short text layer, or changing a single timing value in an existing project.

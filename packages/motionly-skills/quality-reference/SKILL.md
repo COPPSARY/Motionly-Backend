@@ -1,3 +1,8 @@
+---
+name: quality-reference
+description: Maintain the connected product-film quality bar for Motionly compositions and edits.
+---
+
 # Motionly reference-quality bar
 
 The reference product promo is a connected product film, not a sequence of title cards. It uses one visual world, clear scene ownership, editorial scale contrast, real product UI, inline SVG detail, overlapping handoffs, local camera focus, and readable holds. Each scene follows arrival, active transformation, hold, and resolve.

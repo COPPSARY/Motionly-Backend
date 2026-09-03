@@ -21,4 +21,15 @@ describe('project preview compatibility', () => {
 
     expect(preview.bundle).toContain('generated-composition');
   });
+
+  it('ignores remote stylesheet imports without fetching the network', async () => {
+    const files = {
+      ...STARTER_SOURCE_FILES,
+      'styles.css': '@import url("https://fonts.googleapis.com/css2?family=Inter");\n' + STARTER_SOURCE_FILES['styles.css'],
+    };
+
+    const preview = await bundleProjectPreview(files);
+
+    expect(preview.styles).not.toContain('fonts.googleapis.com');
+  });
 });

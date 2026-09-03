@@ -1,3 +1,8 @@
+---
+name: marketing
+description: Shape product-focused motion graphics around clear marketing and sales messaging.
+---
+
 # Motionly Marketing & Video Sales Skill
 
 ## Purpose
@@ -31,7 +36,7 @@ Do not begin by deciding:
 - What random UI card should appear?
 
 Instead determine:
-`TARGET → PROBLEM → DESIRE → AWARENESS → ANGLE → HOOK → PROMISE → MECHANISM → PROOF → OBJECTION → CTA`
+`TARGET â†’ PROBLEM â†’ DESIRE â†’ AWARENESS â†’ ANGLE â†’ HOOK â†’ PROMISE â†’ MECHANISM â†’ PROOF â†’ OBJECTION â†’ CTA`
 
 Only after that should the visual treatment be designed.
 
@@ -68,7 +73,7 @@ Every important scene should have a marketing purpose.
 
 **Motionly application:**
 Do not describe Motionly only through features.
-Instead translate: `FEATURE → FUNCTION → BENEFIT → DESIRED OUTCOME`
+Instead translate: `FEATURE â†’ FUNCTION â†’ BENEFIT â†’ DESIRED OUTCOME`
 
 *Example:*
 Weak: "Motionly supports programmatic animation."
@@ -129,7 +134,7 @@ Instead determine what the audience should care about immediately.
 
 **Motionly application:**
 A video script should have a natural progression. Do not make every scene feel like an isolated slide (e.g. a feature slideshow).
-Instead: `Problem → tension → realization → solution → demonstration → payoff → CTA`
+Instead: `Problem â†’ tension â†’ realization â†’ solution â†’ demonstration â†’ payoff â†’ CTA`
 Each scene should cause the next scene to make sense.
 
 ### F. Tested Advertising Methods
@@ -139,7 +144,7 @@ Each scene should cause the next scene to make sense.
 **Motionly application:**
 Generate multiple hooks and angles when useful.
 Do not assume the first idea is the best idea.
-For important campaigns generate: 3–5 hooks, 2–3 marketing angles, 2–3 CTA approaches.
+For important campaigns generate: 3â€“5 hooks, 2â€“3 marketing angles, 2â€“3 CTA approaches.
 
 ### G. The Robert Collier Letter Book
 **Author:** Robert Collier
@@ -199,13 +204,13 @@ The viewer should see: Starting state, User action, Motionly response, Result, F
 
 ## 6. Video Structure
 A default short-form SaaS advertisement can use:
-1. Hook (0–3s) - Capture attention.
-2. Problem (3–7s) - Make viewer recognize themselves.
-3. Reframe (7–11s) - Introduce a new way of thinking about the problem.
-4. Product Introduction (11–15s) - Introduce Motionly as the mechanism.
-5. Demonstration (15–24s) - Show the real product solving the problem.
-6. Payoff (24–27s) - Show what the customer can now achieve.
-7. CTA (27–30s) - Give the viewer one clear next action.
+1. Hook (0â€“3s) - Capture attention.
+2. Problem (3â€“7s) - Make viewer recognize themselves.
+3. Reframe (7â€“11s) - Introduce a new way of thinking about the problem.
+4. Product Introduction (11â€“15s) - Introduce Motionly as the mechanism.
+5. Demonstration (15â€“24s) - Show the real product solving the problem.
+6. Payoff (24â€“27s) - Show what the customer can now achieve.
+7. CTA (27â€“30s) - Give the viewer one clear next action.
 
 ## 7. Visual Storytelling Rules
 Motion should communicate meaning. Every major animation should have a reason.

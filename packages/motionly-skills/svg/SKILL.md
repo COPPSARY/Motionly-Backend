@@ -1,3 +1,8 @@
+---
+name: svg
+description: Build editable inline SVG layers and animate them safely in Motionly.
+---
+
 # SVG
 
 Author editable inline SVG with stable semantic groups and IDs. Preserve viewBox/aspect ratio, use vector-safe transforms, and register important groups. Animate purposeful strokes, masks, shapes, and local transforms through the caller timeline.

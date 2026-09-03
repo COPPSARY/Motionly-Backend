@@ -1,3 +1,8 @@
+---
+name: story-timing
+description: Plan readable story beats, timing, and narration-aware pacing for Motionly.
+---
+
 # Story and timing
 
 ## Beat contract

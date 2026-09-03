@@ -1,3 +1,8 @@
+---
+name: write-motionly
+description: Create and edit code-first Motionly product films with HTML, CSS, and GSAP.
+---
+
 # Write Motionly compositions
 
 Build a directed product film, not decorated slides. Every visual change should explain, intensify, or resolve the current thought.
@@ -21,9 +26,11 @@ Build a directed product film, not decorated slides. Every visual change should 
 ## Editorial typography
 
 - Express each beat as one bold, complete sentence with a clear hierarchy.
+- Do not split a thought into an oversized headline and tiny subtitle.
 - Center the thought as one unit with `left: 50%`, `top: 50%`, `xPercent: -50`, and `yPercent: -50` when absolutely positioned.
 - Use intentional type scale, readable line-height, strong contrast, and safe bounds for the target aspect ratio.
-- Animate words or characters in reading order with restrained stagger; keep punctuation attached and preserve spaces.
+- Start high-emphasis statements large and cropped, then settle them into readable focus.
+- Animate words or characters in reading order with restrained stagger and spring overshoot; keep punctuation attached and preserve spaces.
 - Give the completed sentence a real reading hold before departure.
 
 ## Styling and placement
@@ -37,10 +44,17 @@ Build a directed product film, not decorated slides. Every visual change should 
 ## Motion and determinism
 
 - Give each beat an arrival, settle, readable hold, and departure.
-- Prefer morphs, match-cuts, or particle reassembly for scene handoffs; use opacity only for internal cleanup.
+- Every scene handoff must use a morph, match-cut, or particle reassembly. Never use a hard cut, cross-dissolve, or fade-to-black as the transition.
+- Keep subtle ambient drift, breathing scale, or stroke drawing alive during holds; do not leave a frame completely static.
 - Use `back.out(...)` for tactile text and controls and `power3.inOut` or `power4.inOut` for camera and geometry.
 - Set every hidden, transformed, and layered initial state at time zero.
 - Keep scene and track metadata truthful to the authored timeline and preserve preview/export parity.
+
+## Product proof and cleanup
+
+- Make the reveal causal: prompt surface, action, then product workspace. Reuse the same shell when it can physically transform between those states.
+- Do not show a cursor until typing begins. Keep active tasks legible and hold product UI long enough to inspect.
+- Transform or remove beat-specific overlays, filters, and background accents when their idea ends; do not leave muddy dark veils over luminous scenes.
 
 ## Reference preset
 

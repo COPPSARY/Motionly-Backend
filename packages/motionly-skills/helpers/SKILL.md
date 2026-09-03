@@ -1,3 +1,8 @@
+---
+name: helpers
+description: Use reviewed Motionly GSAP helper presets on the caller-owned timeline.
+---
+
 # Motionly GSAP helper catalogue
 
 Generated `timeline.js` may import reviewed helpers from `@motionly/presets`: `reveal`, `slide`, `scalePop`, `blurReveal`, `maskWipe`, `staggerEntrance`, `staggerExit`, `cameraPush`, `cameraPull`, `sceneHandoff`, `morph`, `splitText`, and `textReveal`.

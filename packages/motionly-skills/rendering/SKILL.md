@@ -1,3 +1,8 @@
+---
+name: rendering
+description: Preserve deterministic preview and export behavior for Motionly source.
+---
+
 # Rendering
 
 Preview and export must mount the same source through the same Motionly runtime. Verify real visual state changes, deterministic frame seeking, console errors, asset readiness, blank frames, clipping, stale layers, final cleanup, width/height/fps/duration, and representative frames.

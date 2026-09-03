@@ -1,3 +1,8 @@
+---
+name: transitions-camera
+description: Combine transition ownership and motivated camera direction in Motionly product films.
+---
+
 # Transitions and camera direction
 
 ## Choose a carrier

@@ -8,6 +8,12 @@
     "apps/generation-worker/src/**/*.ts",
     "packages/**/*.ts"
   ],
-  "exclude": ["**/*.test.ts", "dist", "node_modules", "tests"]
+  "exclude": [
+    "**/*.test.ts",
+    "dist",
+    "node_modules",
+    "tests",
+    "packages/motionly-runtime/reference"
+  ]
 }
 

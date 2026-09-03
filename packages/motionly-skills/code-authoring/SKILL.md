@@ -1,3 +1,8 @@
+---
+name: code-authoring
+description: Author safe Motionly HTML, CSS, GSAP timeline, and adapter source files.
+---
+
 # Code authoring
 
 `composition.html` owns semantic markup, inline SVG, and scoped styles. `timeline.js` exports a builder that receives `{ root, timeline, register }`. Query only inside `root`, validate required targets, register selectable elements, and add GSAP operations to `timeline` or a nested timeline attached to it.
