@@ -9,8 +9,7 @@
       "file": "core/SKILL.md",
       "tags": [
         "core"
-      ],
-      "sha256": "3f2d77092d973ec4a26cff67835778190ceac46b18c7f7f2c77ce6225b77e941"
+      ]
     },
     {
       "id": "write-motionly",
@@ -26,8 +25,7 @@
         "typography",
         "layout",
         "style"
-      ],
-      "sha256": "b8ab8e8a19638382b569b508d4db14de940f0a857a2501725967eb0cba161651"
+      ]
     },
     {
       "id": "helpers",
@@ -37,8 +35,7 @@
         "gsap",
         "helper",
         "preset"
-      ],
-      "sha256": "21fa191ee3f8c66fbc840fde462dad919ad94178885383befecd8312b442f81c"
+      ]
     },
     {
       "id": "quality-reference",
@@ -49,8 +46,7 @@
         "composition",
         "create",
         "edit"
-      ],
-      "sha256": "b43315ec7edb99fcd3e2e6e37969b2cfe501c4eecf6226bd5e261c8751dbef90"
+      ]
     },
     {
       "id": "code-authoring",
@@ -59,8 +55,7 @@
         "code",
         "html",
         "gsap"
-      ],
-      "sha256": "3076aba2c8e0cbbe9b3a8b2ae79de398036bb985905dc1add9872cb1e79fb1dc"
+      ]
     },
     {
       "id": "timeline",
@@ -70,8 +65,7 @@
         "timing",
         "retime",
         "duration"
-      ],
-      "sha256": "f3d69eca2eeb3c09766c70f45490fe1dbeadb505b611263c7f1d0e0e8e50c2ee"
+      ]
     },
     {
       "id": "typography",
@@ -82,8 +76,7 @@
         "title",
         "typography",
         "font"
-      ],
-      "sha256": "784c1d5994f99d8f743764d99154bec9108cad0a14bd137a6cca81d6b4f543a6"
+      ]
     },
     {
       "id": "transitions",
@@ -93,8 +86,7 @@
         "morph",
         "match-cut",
         "particle"
-      ],
-      "sha256": "0c55cbd74599d9a3c216ba801b0fbb329a67501ba2a836258ee9ea57fb2c5fe1"
+      ]
     },
     {
       "id": "camera",
@@ -106,8 +98,7 @@
         "push",
         "pull",
         "reframe"
-      ],
-      "sha256": "b30776475b0fbe7d6b26e43c8645028d684ad36f3dce1b19b5c0a6737500b8dc"
+      ]
     },
     {
       "id": "svg",
@@ -118,8 +109,7 @@
         "path",
         "mask",
         "stroke"
-      ],
-      "sha256": "86e048467cb12e2e3292c09eb170c2faeff030a7a9f7d7018f9d2850c2347e96"
+      ]
     },
     {
       "id": "assets",
@@ -131,8 +121,7 @@
         "audio",
         "screenshot",
         "media"
-      ],
-      "sha256": "c0b818dc9db82befd3abb315ff663198e3e308e2d6af69b76b08cd7504201be6"
+      ]
     },
     {
       "id": "rendering",
@@ -143,8 +132,7 @@
         "preview",
         "chromium",
         "frame"
-      ],
-      "sha256": "bd44a1164dce140cf3cb928e2a9be75ace9778ff07f7eecc8bc7e65c3a41ee41"
+      ]
     },
     {
       "id": "small-edits",
@@ -159,44 +147,39 @@
         "simple",
         "animation",
         "add"
-      ],
-      "sha256": "0560e9492572fbd74efee6b54dee57541cf1cc639ac6e485b367a50fe71c3a72"
+      ]
     },
     {
-      "sha256": "42e6da5f6ae4185fdb53dc45d8e18a9224d4625f109592c95c60ca0cce0d9cf0",
+      "id": "marketing",
+      "file": "marketing/SKILL.md",
       "tags": [
         "marketing",
         "copywriting",
         "strategy",
         "sales",
         "video"
-      ],
-      "id": "marketing",
-      "file": "marketing/SKILL.md"
+      ]
     },
     {
       "id": "story-timing",
       "file": "story-timing/SKILL.md",
       "tags": [
         "story"
-      ],
-      "sha256": "a4d90dfc4c6b56702ab58034eac88a4c4b646c3c6c0493bfe398bbcdd5548edf"
+      ]
     },
     {
       "id": "transitions-camera",
       "file": "transitions-camera/SKILL.md",
       "tags": [
         "transitions"
-      ],
-      "sha256": "4224134468ff59ffd22a85ad000b6e480ef4e31a77e5a40ca6697989bb1fdf5d"
+      ]
     },
     {
       "id": "typography-backgrounds",
       "file": "typography-backgrounds/SKILL.md",
       "tags": [
         "typography"
-      ],
-      "sha256": "e494b2aaca6de6fc2429eb066b66457509c11a59f53909168eedb13bc68dd7cc"
+      ]
     }
   ]
 }
