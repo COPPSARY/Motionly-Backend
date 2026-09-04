@@ -4,7 +4,7 @@ import { loadSkillBundle } from '../../../packages/motionly-skills/src/loader.js
 import { routeSkills } from '../../../packages/motionly-skills/src/router.js';
 
 describe('Motionly skill bundle', () => {
-  it('loads only when every catalog hash matches', async () => {
+  it('loads the catalog declared by the manifest', async () => {
     const bundle = await loadSkillBundle();
     expect(bundle.manifest).toMatchObject({ version: '1.0.0', sourceVersion: '2.0.0' });
     expect(bundle.skills.map((skill) => skill.id)).toContain('core');

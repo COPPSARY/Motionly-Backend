@@ -10,7 +10,6 @@ export interface SkillRouteInput {
 export interface RoutedSkill {
   id: string;
   version: string;
-  sha256: string;
   reason: string;
   content: string;
 }
@@ -29,7 +28,6 @@ export function routeSkills(
   const selected: RoutedSkill[] = required.map((skill) => ({
     id: skill.id,
     version: bundle.manifest.version,
-    sha256: skill.sha256,
     reason: 'Required for every Motionly generation.',
     content: skill.content,
   }));
@@ -47,7 +45,6 @@ export function routeSkills(
       selected.push({
         id: skill.id,
         version: bundle.manifest.version,
-        sha256: skill.sha256,
         reason: 'Baseline guidance for authored Motionly compositions.',
         content: skill.content,
       });
@@ -67,7 +64,6 @@ export function routeSkills(
     selected.push({
       id: skill.id,
       version: bundle.manifest.version,
-      sha256: skill.sha256,
       reason: `Matched: ${matches.join(', ')}`,
       content: skill.content,
     });
