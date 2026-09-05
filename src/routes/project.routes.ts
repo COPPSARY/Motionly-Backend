@@ -14,10 +14,8 @@ export function createWorkspaceProjectRoutes(controller: ProjectController) {
 export function createProjectRoutes(controller: ProjectController) {
   const router = Router();
   router.get('/:projectId', asyncHandler(controller.get));
+  router.get('/:projectId/files', asyncHandler(controller.getFiles));
   router.patch('/:projectId', requireCsrf, asyncHandler(controller.update));
   router.delete('/:projectId', requireCsrf, asyncHandler(controller.remove));
-  router.get('/:projectId/source', asyncHandler(controller.getSource));
-  router.get('/:projectId/preview', asyncHandler(controller.getPreview));
-  router.put('/:projectId/source', requireCsrf, asyncHandler(controller.saveSource));
   return router;
 }

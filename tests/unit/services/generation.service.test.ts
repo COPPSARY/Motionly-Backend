@@ -1,171 +1,147 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { MotionGraphInput, MotionGraphResponse } from '../../../packages/ai/graph/dependencies.js';
+import { ModelProviderError } from '../../../packages/ai/providers/model.provider.js';
+import type { ValidationError } from '../../../packages/ai/validation/generation-validator.js';
 import { AppError } from '../../../src/errors.js';
-import { GenerationService, type GenerationRecord } from '../../../src/services/generation.service.js';
+import { GenerationService } from '../../../src/services/generation.service.js';
 
-const ids = {
-  user: '00000000-0000-4000-8000-000000000001',
-  workspace: '00000000-0000-4000-8000-000000000002',
-  project: '00000000-0000-4000-8000-000000000003',
-  sourceHash: 'a'.repeat(64),
-  thread: '00000000-0000-4000-8000-000000000005',
-  generation: '00000000-0000-4000-8000-000000000006',
-};
+const WORKSPACE_ID = '26ce88b5-1a51-4265-913e-203eb3cadbd7';
+const PROJECT_ID = '9a4f2e10-7b53-4a1c-9f0d-2c8b6d5e1a33';
+const USER_ID = '00000000-0000-4000-8000-000000000001';
 
-function record(overrides: Partial<GenerationRecord> = {}): GenerationRecord {
-  return {
-    id: ids.generation,
-    workspaceId: ids.workspace,
-    projectId: ids.project,
-    threadId: ids.thread,
-    createdBy: ids.user,
-    intent: 'EDIT',
-    status: 'QUEUED',
-    stage: 'QUEUED',
-    progress: 0,
-    baseSourceHash: ids.sourceHash,
-    baseRevision: 2,
-    outputSourceHash: null,
-    provider: 'gemini',
-    model: 'gemini-test',
-    errorCode: null,
-    errorMessage: null,
-    errorDetails: null,
-    startedAt: null,
-    finishedAt: null,
-    createdAt: new Date('2026-09-01T00:00:00Z'),
-    updatedAt: new Date('2026-09-01T00:00:00Z'),
-    ...overrides,
-  };
+interface HarnessOptions {
+    role?: 'owner' | 'editor' | 'viewer' | null;
+    response?: MotionGraphResponse;
+    error?: unknown;
 }
 
-function repository() {
-  return {
-    getWorkspaceMembership: vi.fn().mockResolvedValue({ role: 'owner' as const }),
-    getProjectAccess: vi.fn().mockResolvedValue({
-      project: { id: ids.project, workspaceId: ids.workspace, sourceHash: ids.sourceHash, revision: 2 },
-      role: 'editor' as const,
-    }),
-    findByIdempotency: vi.fn().mockResolvedValue(null),
-    createProjectGeneration: vi.fn().mockResolvedValue(record({ intent: 'CREATE', baseRevision: 1 })),
-    createEditGeneration: vi.fn().mockResolvedValue(record()),
-    list: vi.fn().mockResolvedValue({ data: [record()], totalItems: 1 }),
-    getForUser: vi.fn().mockResolvedValue(record()),
-    requestCancellation: vi.fn().mockResolvedValue(record({ status: 'CANCELLING' })),
-    listEvents: vi.fn().mockResolvedValue([]),
-    countActiveForUser: vi.fn().mockResolvedValue(0),
-    summarizeReadyAssets: vi.fn().mockImplementation(async (_workspaceId: string, assetIds: string[]) => ({
-      count: new Set(assetIds).size,
-      totalBytes: assetIds.length * 1_000,
-    })),
-  };
-}
+function createService(options: HarnessOptions = {}) {
+    const role = options.role === undefined ? 'editor' : options.role;
+    const projects = {
+        loadProjectAccess: vi.fn(async () => (role ? { workspaceId: WORKSPACE_ID, role } : null)),
+    };
+    const graph = {
+        invoke: vi.fn(async (_input: MotionGraphInput) => {
+            if (options.error) throw options.error;
+            return { response: options.response ?? ({ type: 'chat', message: 'Motionly is ready.' } as MotionGraphResponse) };
+        }),
+    };
 
-function service(repo = repository()) {
-  return { service: new GenerationService(repo, { provider: 'gemini', model: 'gemini-test' }), repo };
+    return { service: new GenerationService(graph, projects), graph, projects };
 }
 
 describe('GenerationService', () => {
-  it('creates a new project generation from the backend-owned starter', async () => {
-    const { service: generations, repo } = service();
-    const result = await generations.create(ids.user, ids.workspace, {
-      prompt: 'Create a product launch film',
-      project: { name: 'Launch', width: 1920, height: 1080, fps: 60, duration: 20 },
-      presetId: 'motionly-product-promo',
-      assetIds: [],
-    }, 'create-key');
+    it('hides projects the user cannot reach and never calls the model', async () => {
+        const { service, graph } = createService({ role: null });
 
-    expect(result).toMatchObject({ intent: 'CREATE', provider: 'gemini', status: 'QUEUED' });
-    expect(repo.createProjectGeneration).toHaveBeenCalledWith(expect.objectContaining({
-      idempotencyKey: 'create-key',
-      starterFiles: expect.objectContaining({
-        'composition.html': expect.stringContaining('motionly-template'),
-        'timeline.js': expect.stringContaining('register'),
-        'index.ts': expect.stringContaining('defineComposition'),
-      }),
-    }));
-    expect(repo.createProjectGeneration.mock.calls[0]?.[0].starterFiles['index.ts']).toContain('duration: 20');
-  });
-
-  it('returns an existing job for an idempotent retry', async () => {
-    const repo = repository();
-    repo.findByIdempotency.mockResolvedValue(record());
-    const { service: generations } = service(repo);
-
-    const result = await generations.edit(ids.user, ids.project, {
-      prompt: 'Change the title', baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: [],
-    }, 'same-key');
-
-    expect(result.id).toBe(ids.generation);
-    expect(repo.getProjectAccess).not.toHaveBeenCalled();
-    expect(repo.createEditGeneration).not.toHaveBeenCalled();
-  });
-
-  it('rejects stale edits before creating a generation', async () => {
-    const repo = repository();
-    repo.getProjectAccess.mockResolvedValue({
-      project: { id: ids.project, workspaceId: ids.workspace, sourceHash: ids.sourceHash, revision: 5 },
-      role: 'editor',
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make a logo reveal.' }))
+            .rejects.toMatchObject({ status: 404, code: 'PROJECT_NOT_FOUND' });
+        expect(graph.invoke).not.toHaveBeenCalled();
     });
-    const { service: generations } = service(repo);
 
-    await expect(generations.edit(ids.user, ids.project, {
-      prompt: 'Change the title', baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: [],
-    }, 'stale-key')).rejects.toMatchObject({ code: 'REVISION_CONFLICT', status: 409 } satisfies Partial<AppError>);
-    expect(repo.createEditGeneration).not.toHaveBeenCalled();
-  });
+    it('rejects viewers before spending a model call', async () => {
+        const { service, graph } = createService({ role: 'viewer' });
 
-  it('keeps viewers read-only', async () => {
-    const repo = repository();
-    repo.getWorkspaceMembership.mockResolvedValue({ role: 'viewer' });
-    const { service: generations } = service(repo);
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make a logo reveal.' }))
+            .rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+        expect(graph.invoke).not.toHaveBeenCalled();
+    });
 
-    await expect(generations.create(ids.user, ids.workspace, {
-      prompt: 'Create a film',
-      project: { name: 'Launch', width: 1920, height: 1080, fps: 60, duration: 20 },
-      presetId: 'motionly-product-promo',
-      assetIds: [],
-    }, 'viewer-key')).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 } satisfies Partial<AppError>);
-  });
+    it('returns the conversational reply without project fields', async () => {
+        const { service } = createService({ response: { type: 'chat', message: 'What should it say?' } });
 
-  it('enforces the active generation limit without creating partial work', async () => {
-    const repo = repository();
-    repo.countActiveForUser.mockResolvedValue(3);
-    const { service: generations } = service(repo);
-    await expect(generations.edit(ids.user, ids.project, {
-      prompt: 'Change title', baseSourceHash: ids.sourceHash, baseRevision: 2, assetIds: [],
-    }, 'capacity-key')).rejects.toMatchObject({ code: 'GENERATION_LIMIT_EXCEEDED', status: 429 });
-    expect(repo.createEditGeneration).not.toHaveBeenCalled();
-  });
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'Can you help me?' }))
+            .resolves.toEqual({ type: 'chat', message: 'What should it say?' });
+    });
 
-  it('rejects an aggregate asset selection above the workspace budget', async () => {
-    const repo = repository();
-    repo.summarizeReadyAssets.mockResolvedValue({ count: 1, totalBytes: 500_000_001 });
-    const { service: generations } = service(repo);
+    it('sends the addressed project and its workspace to the graph', async () => {
+        const { service, graph } = createService({
+            response: { type: 'generation', message: 'Fixed it.', projectId: PROJECT_ID, revision: 8, created: false },
+        });
 
-    await expect(generations.edit(ids.user, ids.project, {
-      prompt: 'Use the uploaded video', baseSourceHash: ids.sourceHash, baseRevision: 2,
-      assetIds: ['00000000-0000-4000-8000-000000000008'],
-    }, 'large-assets')).rejects.toMatchObject({ code: 'ASSET_BUDGET_EXCEEDED', status: 422 });
-    expect(repo.createEditGeneration).not.toHaveBeenCalled();
-  });
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, {
+            message: 'Fix the crash.',
+            revision: 7,
+            runtimeError: { message: 'buildTimeline is not a function' },
+        })).resolves.toEqual({ type: 'generation', message: 'Fixed it.', projectId: PROJECT_ID, revision: 8 });
 
-  it('drains a full event page before closing a terminal SSE stream', async () => {
-    const repo = repository();
-    repo.getForUser.mockResolvedValue(record({ status: 'COMPLETED' }));
-    repo.listEvents.mockResolvedValue(Array.from({ length: 500 }, (_, index) => ({
-      generationId: ids.generation,
-      sequence: index + 1,
-      type: 'PROGRESS',
-      status: 'VALIDATING' as const,
-      stage: 'COMPILE_CHECK',
-      progress: 75,
-      message: null,
-      data: null,
-      createdAt: new Date(),
-    })));
-    const { service: generations } = service(repo);
+        expect(graph.invoke).toHaveBeenCalledWith({
+            userId: USER_ID,
+            workspaceId: WORKSPACE_ID,
+            projectId: PROJECT_ID,
+            message: 'Fix the crash.',
+            revision: 7,
+            runtimeError: { message: 'buildTimeline is not a function' },
+        });
+    });
 
-    await expect(generations.events(ids.user, ids.generation, 0)).resolves.toMatchObject({ isTerminal: false });
-  });
+    it('omits absent optional fields instead of sending undefined to the graph', async () => {
+        const { service, graph } = createService();
+
+        await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Hello' });
+
+        expect(graph.invoke).toHaveBeenCalledWith({
+            userId: USER_ID, workspaceId: WORKSPACE_ID, projectId: PROJECT_ID, message: 'Hello',
+        });
+    });
+
+    it('maps a stale revision to a conflict that carries the current revision', async () => {
+        const { service } = createService({
+            response: { type: 'error', code: 'REVISION_CONFLICT', message: 'Changed.', currentRevision: 9 },
+        });
+
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'Edit it.', revision: 7 }))
+            .rejects.toMatchObject({ status: 409, code: 'REVISION_CONFLICT', details: { currentRevision: 9 } });
+    });
+
+    it('reports validation diagnostics as an unprocessable generation', async () => {
+        const errors: ValidationError[] = [{ field: 'timelineJs', code: 'FORBIDDEN_API', message: 'fetch is not allowed.' }];
+        const { service } = createService({
+            response: { type: 'error', code: 'GENERATION_INVALID', message: 'Invalid.', errors },
+        });
+
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'Edit it.' }))
+            .rejects.toMatchObject({ status: 422, code: 'GENERATION_INVALID', details: { errors } });
+    });
+
+    it('maps a missing project and a read-only role reported by the graph', async () => {
+        const missing = createService({
+            response: { type: 'error', code: 'PROJECT_NOT_FOUND', message: 'Project not found.' },
+        });
+        await expect(missing.service.sendMessage(USER_ID, PROJECT_ID, { message: 'Edit it.' }))
+            .rejects.toMatchObject({ status: 404, code: 'PROJECT_NOT_FOUND' });
+
+        const forbidden = createService({
+            response: { type: 'error', code: 'FORBIDDEN', message: 'Viewer access is read-only.' },
+        });
+        await expect(forbidden.service.sendMessage(USER_ID, PROJECT_ID, { message: 'Edit it.' }))
+            .rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    });
+
+    it('translates provider failures into retryable HTTP statuses', async () => {
+        const limited = createService({
+            error: new ModelProviderError('PROVIDER_RATE_LIMITED', 'gemini rate limit reached.', true),
+        });
+        await expect(limited.service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make it.' }))
+            .rejects.toMatchObject({ status: 429, code: 'PROVIDER_RATE_LIMITED' });
+
+        const timedOut = createService({
+            error: new ModelProviderError('PROVIDER_TIMEOUT', 'The model request timed out.', false),
+        });
+        await expect(timedOut.service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make it.' }))
+            .rejects.toMatchObject({ status: 504, code: 'PROVIDER_TIMEOUT' });
+    });
+
+    it('never leaks the provider key failure message to the client', async () => {
+        const { service } = createService({
+            error: new ModelProviderError('PROVIDER_AUTH_FAILED', 'gemini rejected the configured API key.', false),
+        });
+
+        const failure = await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make it.' }).catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(AppError);
+        expect((failure as AppError).status).toBe(502);
+        expect((failure as AppError).message).not.toContain('API key');
+    });
 });

@@ -1,0 +1,183 @@
+import { z } from 'zod';
+
+const sceneTrackSchema = z.object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    kind: z.enum(['Text', 'Element', 'SVG', 'Background', 'Camera']),
+    start: z.number().nonnegative(),
+    end: z.number().positive(),
+}).strict();
+
+const sceneShape = {
+    id: z.string().min(1),
+    label: z.string().min(1),
+    start: z.number().nonnegative(),
+    duration: z.number().positive(),
+    accent: z.string().min(1),
+};
+
+const sceneSchema = z.object({
+    ...sceneShape,
+    tracks: z.array(sceneTrackSchema).optional(),
+}).strict();
+
+const providerSceneSchema = z.object({
+    ...sceneShape,
+    tracks: z.array(sceneTrackSchema),
+}).strict();
+
+export const motionlyGenerationSchema = z.object({
+    title: z.string().min(1),
+    duration: z.number().positive(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    fps: z.number().positive(),
+    scenes: z.array(sceneSchema),
+    compositionHtml: z.string().min(1),
+    timelineJs: z.string().min(1),
+    reply: z.string().min(1),
+}).strict();
+
+const providerGenerationSchema = motionlyGenerationSchema.extend({
+    scenes: z.array(providerSceneSchema),
+});
+
+export const motionlyGenerationJsonSchema = z.toJSONSchema(providerGenerationSchema, {
+    target: 'draft-7',
+});
+
+export type MotionlyGeneration = z.infer<typeof motionlyGenerationSchema>;
+
+export interface ModelRequestLimits {
+    maxOutputTokens: number;
+    timeoutMs: number;
+}
+
+export interface MotionModelRequest {
+    model: string;
+    systemInstructions: string;
+    prompt: string;
+    limits: ModelRequestLimits;
+    signal?: AbortSignal;
+}
+
+export interface StructuredModelRequest<T> extends MotionModelRequest {
+    schemaName: string;
+    schema: z.ZodType<T>;
+}
+
+export interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface ChatRequest {
+    model: string;
+    systemInstructions: string;
+    messages: ChatMessage[];
+    limits: ModelRequestLimits;
+    signal?: AbortSignal;
+}
+
+export type ModelProviderName = 'gemini' | 'openai' | 'anthropic';
+
+export type ProviderErrorCode =
+    | 'PROVIDER_RATE_LIMITED'
+    | 'PROVIDER_TIMEOUT'
+    | 'PROVIDER_UNAVAILABLE'
+    | 'PROVIDER_OUTPUT_INVALID'
+    | 'PROVIDER_MODEL_UNAVAILABLE'
+    | 'PROVIDER_AUTH_FAILED'
+    | 'PROVIDER_ERROR';
+
+export class ModelProviderError extends Error {
+    constructor(
+        public readonly code: ProviderErrorCode,
+        message: string,
+        public readonly retryable: boolean,
+    ) {
+        super(message);
+        this.name = 'ModelProviderError';
+    }
+}
+
+export interface MotionModelProvider {
+    readonly name: ModelProviderName;
+    structured<T>(request: StructuredModelRequest<T>): Promise<T>;
+    generate(request: MotionModelRequest): Promise<MotionlyGeneration>;
+    chat(request: ChatRequest): Promise<string>;
+}
+
+export function parseStructured<T>(text: string, schema: z.ZodType<T>): T {
+    let value: unknown;
+    try { value = JSON.parse(text); } catch {
+        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned invalid JSON.', false);
+    }
+    const parsed = schema.safeParse(value);
+    if (!parsed.success) throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model output does not match the requested schema.', false);
+    return parsed.data;
+}
+
+export function parseMotionlyGeneration(text: string): MotionlyGeneration {
+    let value: unknown;
+    try {
+        value = JSON.parse(text);
+    } catch {
+        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned invalid JSON.', false);
+    }
+
+    const parsed = motionlyGenerationSchema.safeParse(value);
+    if (!parsed.success) {
+        throw new ModelProviderError(
+            'PROVIDER_OUTPUT_INVALID',
+            'The model output does not match the Motionly generation schema.',
+            false,
+        );
+    }
+    return parsed.data;
+}
+
+export function requireModelText(text: string | undefined): string {
+    if (!text?.trim()) {
+        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned an empty response.', false);
+    }
+    return text;
+}
+
+export function createRequestSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+}
+
+export function normalizeProviderError(
+    provider: ModelProviderName,
+    error: unknown,
+    signal: AbortSignal,
+): ModelProviderError {
+    if (error instanceof ModelProviderError) return error;
+    if (signal.aborted) {
+        return new ModelProviderError('PROVIDER_TIMEOUT', 'The model request timed out or was cancelled.', false);
+    }
+
+    const status = readStatus(error);
+    if (status === 401 || status === 403) {
+        return new ModelProviderError('PROVIDER_AUTH_FAILED', `${provider} rejected the configured API key.`, false);
+    }
+    if (status === 404) {
+        return new ModelProviderError('PROVIDER_MODEL_UNAVAILABLE', `The configured ${provider} model is unavailable.`, false);
+    }
+    if (status === 429) {
+        return new ModelProviderError('PROVIDER_RATE_LIMITED', `${provider} rate limit reached.`, true);
+    }
+    if (status !== undefined && status >= 500) {
+        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true);
+    }
+    return new ModelProviderError('PROVIDER_ERROR', `${provider} request failed.`, false);
+}
+
+function readStatus(error: unknown): number | undefined {
+    if (!error || typeof error !== 'object') return undefined;
+    if ('status' in error && typeof error.status === 'number') return error.status;
+    if ('statusCode' in error && typeof error.statusCode === 'number') return error.statusCode;
+    return undefined;
+}

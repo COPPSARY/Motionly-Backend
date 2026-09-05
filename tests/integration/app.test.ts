@@ -34,8 +34,8 @@ function dependencies() {
     },
     projects: {
       list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(),
-      getSource: vi.fn(), getPreview: vi.fn(), saveSource: vi.fn(),
     },
+    motionMessages: { sendMessage: vi.fn().mockResolvedValue({ type: 'plan', message: 'Plan only.' }) },
   };
 }
 
@@ -55,15 +55,6 @@ describe('Motionly API', () => {
     expect(response.status).toBe(503);
     expect(response.body).toEqual({ status: 'not_ready' });
     expect(JSON.stringify(response.body)).not.toContain('secret-host');
-  });
-
-  it('publishes the provider-neutral OpenAPI contract', async () => {
-    const app = createApp({ services: dependencies(), frontendOrigins: ['http://localhost:5173'], secureCookies: false });
-    const response = await request(app).get('/openapi.json');
-    expect(response.status).toBe(200);
-    expect(response.body.openapi).toBe('3.1.0');
-    expect(response.body.paths).toHaveProperty('/v1/projects/{projectId}/generations');
-    expect(JSON.stringify(response.body)).not.toContain('GEMINI_API_KEY');
   });
 
   it('accepts email registration at the top-level sign-up route', async () => {
@@ -140,6 +131,41 @@ describe('Motionly API', () => {
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('CSRF_INVALID');
+  });
+
+  it('routes generation through the project messages endpoint', async () => {
+    const deps = dependencies();
+    deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
+    const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
+    const response = await request(app).post('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/messages')
+      .set('Cookie', ['motionly_session=session']).set('x-csrf-token', 'expected-csrf').send({ message: 'Plan a launch.' });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ type: 'plan', message: 'Plan only.' });
+    expect(deps.motionMessages.sendMessage).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7', { message: 'Plan a launch.' });
+  });
+
+  it('lists projects through the workspace projects endpoint', async () => {
+    const deps = dependencies();
+    deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
+    deps.projects.list.mockResolvedValue([{ id: 'project-1', name: 'Launch' }]);
+    const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
+    const response = await request(app).get('/v1/workspaces/26ce88b5-1a51-4265-913e-203eb3cadbd7/projects').set('Cookie', ['motionly_session=session']);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([{ id: 'project-1', name: 'Launch' }]);
+    expect(deps.projects.list).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7');
+  });
+
+  it('returns the two renderable files for a project', async () => {
+    const deps = dependencies();
+    deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
+    deps.projects.get.mockResolvedValue({ compositionHtml: '<template><style>.hero { color: red; }</style></template>', timelineJs: 'export function buildTimeline() {}' });
+    const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
+    const response = await request(app).get('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/files').set('Cookie', ['motionly_session=session']);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      'composition.html': '<template><style>.hero { color: red; }</style></template>',
+      'timeline.js': 'export function buildTimeline() {}',
+    });
   });
 
   it('returns the session CSRF token with the current user', async () => {

@@ -2,7 +2,7 @@ import type { LoadedSkill, SkillManifest } from './loader.js';
 
 export interface SkillRouteInput {
   prompt: string;
-  intent: 'CREATE' | 'EDIT';
+  intent: 'CREATE' | 'EDIT' | 'FIX';
   assetTypes?: string[];
   maxCharacters?: number;
 }
@@ -34,7 +34,7 @@ export function routeSkills(
   const maxCharacters = input.maxCharacters ?? 12_000;
   const requiredCharacters = required.reduce((total, skill) => total + skill.content.length, 0);
   if (requiredCharacters > maxCharacters) throw new Error('Motionly required skills exceed the routing character budget.');
-  const preferredIds = input.intent === 'CREATE' ? ['write-motionly', 'quality-reference', 'code-authoring', 'typography'] : [];
+  const preferredIds = input.intent === 'CREATE' ? ['write-motionly', 'quality-reference', 'code-authoring', 'typography'] : input.intent === 'FIX' ? ['code-authoring', 'quality-reference'] : [];
   let characters = requiredCharacters;
   const preferredSkills = preferredIds.map((id) => bundle.skills.find((skill) => skill.id === id)).filter(
     (skill): skill is LoadedSkill => skill !== undefined,

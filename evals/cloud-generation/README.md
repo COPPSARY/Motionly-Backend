@@ -23,7 +23,7 @@ $env:GEMINI_API_KEY = 'server-only-test-key'
 npm.cmd run eval:gemini-smoke
 ```
 
-`AI_MODEL` or `GEMINI_MODEL` selects the model. The probe never prints the key, model response text, source, or user assets. It does contact Gemini and may incur a small provider charge, so it is never part of the default test suite.
+`AI_MODEL` selects the model. The probe never prints the key, model response text, source, or user assets. It does contact Gemini and may incur a small provider charge, so it is never part of the default test suite.
 
 Human reviewers score each anonymous output from 1–5 on prompt adherence, story clarity, hierarchy/readability, motion/transition quality, product authenticity, edit locality, and overall finish. The V1 release target is a median no more than 0.5 below the reference preset and no category median below 3.5.
 

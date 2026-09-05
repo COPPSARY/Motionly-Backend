@@ -57,6 +57,34 @@
       "when": 1788699600000,
       "tag": "0007_remove_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788699660000,
+      "tag": "0008_motionly_graph",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788717000000,
+      "tag": "0009_remove_legacy_generation_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788718000000,
+      "tag": "0010_remove_legacy_project_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788719000000,
+      "tag": "0011_rename_project_title_to_name",
+      "breakpoints": true
     }
   ]
 }
