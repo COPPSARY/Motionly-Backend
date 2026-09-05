@@ -42,8 +42,8 @@ Motionly API ----> PostgreSQL
 
 ## Repository layout
 
-- `apps/api`: HTTP API process.
-- `apps/renderer`: isolated render worker.
+- `src`: HTTP API process.
+- A renderer worker can be reintroduced as an isolated service when rendering returns.
 - `packages/*`: shared contracts, database, provider interfaces, observability, and tooling configuration.
 - `drizzle/migrations`: committed database migrations.
 - `docs`: operational and integration documentation.

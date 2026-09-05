@@ -1,8 +1,8 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../apps/api/src/server.js';
-import { AppError } from '../../apps/api/src/errors.js';
+import { createApp } from '../../src/server.js';
+import { AppError } from '../../src/errors.js';
 
 const user = {
   id: '00000000-0000-4000-8000-000000000001',

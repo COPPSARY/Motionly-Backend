@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeDatabaseUrl } from '../../../packages/database/src/connection-url.js';
+import { normalizeDatabaseUrl } from '../../../packages/database/connection-url.js';
 
 describe('normalizeDatabaseUrl', () => {
   it('encodes reserved characters in a raw database password', () => {

@@ -4,8 +4,7 @@
     "types": ["node"]
   },
   "include": [
-    "apps/api/src/**/*.ts",
-    "apps/generation-worker/src/**/*.ts",
+    "src/**/*.ts",
     "packages/**/*.ts"
   ],
   "exclude": [

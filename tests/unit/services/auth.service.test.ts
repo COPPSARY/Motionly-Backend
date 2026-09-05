@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { AuthService } from '../../../apps/api/src/services/auth.service.js';
+import { AuthService } from '../../../src/services/auth.service.js';
 
 const identity = { id: '00000000-0000-4000-8000-000000000001', email: 'designer@example.com', emailVerified: true, displayName: 'Designer', avatarUrl: null };
 const session = { identity, accessToken: 'access', refreshToken: 'refresh', expiresAt: new Date('2030-01-01T00:00:00.000Z') };

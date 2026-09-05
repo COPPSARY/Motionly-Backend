@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/src/local-filesystem.js';
+import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/local-filesystem.js';
 
 const directories: string[] = [];
 afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createLogger, serializeLogError } from '../../../apps/api/src/config/logger.js';
+import { createLogger, serializeLogError } from '../../../src/config/logger.js';
 
 describe('logger configuration', () => {
   it('uses info level in production and redacts sensitive request fields', () => {

@@ -37,7 +37,7 @@ Every project, asset, and render operation is authorized at the workspace bounda
 
 ## Cloud generation controls
 
-- Model keys exist only in the generation-worker environment and are never mounted into renderer containers.
+- When a generation worker is deployed, model keys must exist only in that worker environment and must never be mounted into renderer containers.
 - The coordinator exposes enum-constrained source tools; the model receives no shell or arbitrary filesystem tool.
 - Renderer containers run non-root with no network, read-only root filesystem, dropped Linux capabilities, `no-new-privileges`, bounded CPU/memory/PIDs/time, and one staged workspace mount.
 - Source policy rejects traversal, symlinks, remote imports, Node/process APIs, `.motion`, JSON animation DSLs, and alternate renderers.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadSkillBundle } from '../../../packages/motionly-skills/src/loader.js';
-import { routeSkills } from '../../../packages/motionly-skills/src/router.js';
+import { loadSkillBundle } from '../../../packages/motionly-skills/loader.js';
+import { routeSkills } from '../../../packages/motionly-skills/router.js';
 
 describe('Motionly skill bundle', () => {
   it('loads the catalog declared by the manifest', async () => {

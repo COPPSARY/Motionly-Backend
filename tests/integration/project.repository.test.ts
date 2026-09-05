@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { eq, TransactionRollbackError } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
-import { DatabaseProjectRepository } from '../../apps/api/src/repositories/project.repository.js';
-import { hashSourceFiles, type ProjectSourceFiles } from '../../apps/api/src/services/project.service.js';
-import { createDatabase, type Database } from '../../packages/database/src/client.js';
-import { projectFiles, users, workspaceMembers, workspaces } from '../../packages/database/src/schema.js';
+import { DatabaseProjectRepository } from '../../src/repositories/project.repository.js';
+import { hashSourceFiles, type ProjectSourceFiles } from '../../src/services/project.service.js';
+import { createDatabase, type Database } from '../../packages/database/client.js';
+import { projectFiles, users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 

@@ -5,7 +5,7 @@ import path from 'node:path';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../apps/api/src/server.js';
+import { createApp } from '../../src/server.js';
 
 const user = { id: '00000000-0000-4000-8000-000000000001', email: 'designer@example.com', emailVerified: true, displayName: 'Designer', avatarUrl: null };
 const generationId = '00000000-0000-4000-8000-000000000002';

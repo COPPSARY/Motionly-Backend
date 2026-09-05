@@ -4,9 +4,9 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DatabaseAssetRepository } from '../../../apps/api/src/repositories/asset.repository.js';
-import { AssetService } from '../../../apps/api/src/services/asset.service.js';
-import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/src/local-filesystem.js';
+import type { DatabaseAssetRepository } from '../../../src/repositories/asset.repository.js';
+import { AssetService } from '../../../src/services/asset.service.js';
+import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/local-filesystem.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));

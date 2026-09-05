@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { WorkspaceService } from '../../../apps/api/src/services/workspace.service.js';
+import { WorkspaceService } from '../../../src/services/workspace.service.js';
 
 describe('WorkspaceService authorization rules', () => {
   it('prevents removing the last owner', async () => {

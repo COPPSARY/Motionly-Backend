@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { AppError } from '../../../apps/api/src/errors.js';
-import { GenerationService, type GenerationRecord } from '../../../apps/api/src/services/generation.service.js';
+import { AppError } from '../../../src/errors.js';
+import { GenerationService, type GenerationRecord } from '../../../src/services/generation.service.js';
 
 const ids = {
   user: '00000000-0000-4000-8000-000000000001',
@@ -101,7 +101,7 @@ describe('GenerationService', () => {
     expect(repo.createEditGeneration).not.toHaveBeenCalled();
   });
 
-  it('rejects stale edits before enqueueing', async () => {
+  it('rejects stale edits before creating a generation', async () => {
     const repo = repository();
     repo.getProjectAccess.mockResolvedValue({
       project: { id: ids.project, workspaceId: ids.workspace, sourceHash: ids.sourceHash, revision: 5 },
@@ -128,7 +128,7 @@ describe('GenerationService', () => {
     }, 'viewer-key')).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 } satisfies Partial<AppError>);
   });
 
-  it('enforces the active generation limit without enqueueing partial work', async () => {
+  it('enforces the active generation limit without creating partial work', async () => {
     const repo = repository();
     repo.countActiveForUser.mockResolvedValue(3);
     const { service: generations } = service(repo);

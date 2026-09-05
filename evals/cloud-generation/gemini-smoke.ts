@@ -1,5 +1,5 @@
-import { GeminiModelProvider } from '../../packages/ai-providers/src/gemini.js';
-import type { ModelEvent, ModelToolDefinition } from '../../packages/ai-providers/src/types.js';
+import { GeminiModelProvider } from '../../packages/ai-providers/gemini.js';
+import type { ModelEvent, ModelToolDefinition } from '../../packages/ai-providers/types.js';
 
 const apiKey = process.env.GEMINI_API_KEY?.trim();
 if (!apiKey) throw new Error('GEMINI_API_KEY is required for the opt-in Gemini smoke evaluation.');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FakeModelProvider } from '../../../packages/ai-providers/src/fake-provider.js';
+import { FakeModelProvider } from '../../../packages/ai-providers/fake-provider.js';
 
 const input = {
   model: 'fake-model',

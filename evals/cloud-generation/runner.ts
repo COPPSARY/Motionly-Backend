@@ -2,9 +2,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { validateMotionlySource } from '../../packages/generation-tools/src/source-policy.js';
-import { STARTER_SOURCE_FILES } from '../../packages/motionly-runtime/src/starter.js';
-import type { ProjectSourceFiles, ProjectSourcePath } from '../../apps/api/src/services/project.service.js';
+import { validateMotionlySource } from '../../packages/generation-tools/source-policy.js';
+import { STARTER_SOURCE_FILES } from '../../packages/motionly-runtime/starter.js';
+import type { ProjectSourceFiles, ProjectSourcePath } from '../../src/services/project.service.js';
 
 interface EvalCase {
   id: string;

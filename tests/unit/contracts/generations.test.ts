@@ -6,7 +6,7 @@ import {
   createGenerationRequestSchema,
   editGenerationRequestSchema,
   isTerminalGenerationStatus,
-} from '../../../packages/contracts/src/generations.js';
+} from '../../../packages/contracts/generations.js';
 
 describe('generation contracts', () => {
   it('validates create and edit requests without provider-specific fields', () => {
