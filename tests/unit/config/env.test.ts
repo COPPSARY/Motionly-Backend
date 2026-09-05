@@ -12,6 +12,7 @@ const valid = {
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
   SESSION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
   SESSION_COOKIE_SECURE: 'true',
+  AI_MODEL: 'shared-provider-model',
 };
 
 describe('parseEnvironment', () => {
@@ -49,5 +50,25 @@ describe('parseEnvironment', () => {
     });
 
     expect(environment.supabaseUrl).toBe('https://motionlyref.supabase.co');
+  });
+
+  it('rejects the removed OpenAI-compatible provider', () => {
+    expect(() => parseEnvironment({ ...valid, AI_PROVIDER: 'openai-compatible' })).toThrow();
+  });
+
+  it('uses AI_MODEL as the only configured model', () => {
+    const environment = parseEnvironment({
+      ...valid,
+      AI_MODEL: 'shared-provider-model',
+      GEMINI_MODEL: 'ignored-gemini-model',
+    });
+
+    expect(environment.aiModel).toBe('shared-provider-model');
+    expect(environment).not.toHaveProperty('geminiModel');
+  });
+
+  it('requires AI_MODEL even when the removed GEMINI_MODEL is set', () => {
+    const { AI_MODEL: _aiModel, ...withoutAiModel } = valid;
+    expect(() => parseEnvironment({ ...withoutAiModel, GEMINI_MODEL: 'ignored-gemini-model' })).toThrow();
   });
 });

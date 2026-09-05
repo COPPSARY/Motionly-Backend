@@ -16,27 +16,9 @@ import {
 
 export const workspaceRole = pgEnum('workspace_role', ['owner', 'editor', 'viewer']);
 export const workspaceKind = pgEnum('workspace_kind', ['personal', 'team']);
-export const generationIntent = pgEnum('generation_intent', ['CREATE', 'EDIT']);
-export const generationStatus = pgEnum('generation_status', [
-  'QUEUED',
-  'PREPARING',
-  'GENERATING',
-  'VALIDATING',
-  'PUBLISHING',
-  'CANCELLING',
-  'COMPLETED',
-  'CANCELLED',
-  'FAILED',
-]);
-export const generationEventType = pgEnum('generation_event_type', [
-  'STATUS_CHANGED',
-  'PROGRESS',
-  'COMPLETED',
-  'FAILED',
-  'CANCELLED',
-]);
-export const generationMessageRole = pgEnum('generation_message_role', ['user', 'assistant', 'system']);
-export const modelProvider = pgEnum('model_provider', ['gemini', 'openai', 'anthropic', 'openai-compatible']);
+export const messageRole = pgEnum('message_role', ['user', 'assistant']);
+export const graphIntent = pgEnum('graph_intent', ['CHAT', 'PLAN', 'CREATE', 'EDIT', 'FIX']);
+export const generationRunStatus = pgEnum('generation_run_status', ['COMPLETED', 'FAILED']);
 export const assetState = pgEnum('asset_state', ['PENDING', 'READY', 'FAILED', 'DELETED']);
 export const artifactKind = pgEnum('artifact_kind', [
   'ASSET',
@@ -90,12 +72,13 @@ export const projects = pgTable('projects', {
   height: integer('height').notNull(),
   fps: integer('fps').notNull(),
   duration: doublePrecision('duration').notNull(),
-  sourceHash: text('source_hash').notNull(),
+  scenes: jsonb('scenes').$type<Record<string, unknown>[]>().default([]).notNull(),
+  compositionHtml: text('composition_html').notNull(),
+  timelineJs: text('timeline_js').notNull(),
   revision: integer('revision').default(1).notNull(),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  savedAt: timestamp('saved_at', { withTimezone: true }).defaultNow().notNull(),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
 }, (table) => [
   uniqueIndex('projects_workspace_slug_unique').on(table.workspaceId, table.slug),
@@ -105,17 +88,6 @@ export const projects = pgTable('projects', {
   check('projects_fps_check', sql`${table.fps} between 1 and 240`),
   check('projects_duration_check', sql`${table.duration} > 0 and ${table.duration} <= 86400`),
   check('projects_revision_check', sql`${table.revision} >= 1`),
-]);
-
-export const projectFiles = pgTable('project_files', {
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  path: text('path').notNull(),
-  content: text('content').notNull(),
-  contentHash: text('content_hash').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  primaryKey({ columns: [table.projectId, table.path] }),
-  check('project_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
 ]);
 
 export const authSessions = pgTable('auth_sessions', {
@@ -138,85 +110,31 @@ export const oauthAttempts = pgTable('oauth_attempts', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const generationThreads = pgTable('generation_threads', {
+export const messages = pgTable('messages', {
   id: uuid('id').defaultRandom().primaryKey(),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  role: messageRole('role').notNull(),
+  content: text('content').notNull(),
+  intent: graphIntent('intent'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [index('generation_threads_project_updated_idx').on(table.projectId, table.updatedAt)]);
+}, (table) => [index('messages_project_created_idx').on(table.projectId, table.createdAt)]);
 
-export const generationJobs = pgTable('generation_jobs', {
+export const generationRuns = pgTable('generation_runs', {
   id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  threadId: uuid('thread_id').notNull().references(() => generationThreads.id, { onDelete: 'cascade' }),
-  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
-  intent: generationIntent('intent').notNull(),
-  status: generationStatus('status').default('QUEUED').notNull(),
-  stage: text('stage').default('QUEUED').notNull(),
-  progress: integer('progress').default(0).notNull(),
-  baseSourceHash: text('base_source_hash').notNull(),
   baseRevision: integer('base_revision').notNull(),
-  outputSourceHash: text('output_source_hash'),
-  provider: modelProvider('provider').notNull(),
+  savedRevision: integer('saved_revision'),
+  intent: graphIntent('intent').notNull(),
   model: text('model').notNull(),
-  skillBundleVersion: text('skill_bundle_version').notNull(),
-  runtimeVersion: text('runtime_version').notNull(),
-  idempotencyKey: text('idempotency_key').notNull(),
-  cancelRequestedAt: timestamp('cancel_requested_at', { withTimezone: true }),
-  startedAt: timestamp('started_at', { withTimezone: true }),
-  finishedAt: timestamp('finished_at', { withTimezone: true }),
-  errorCode: text('error_code'),
-  errorMessage: text('error_message'),
-  errorDetails: jsonb('error_details').$type<Record<string, unknown>>(),
+  selectedSkills: jsonb('selected_skills').$type<string[]>().default([]).notNull(),
+  repairAttempts: integer('repair_attempts').default(0).notNull(),
+  status: generationRunStatus('status').notNull(),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  latencyMs: integer('latency_ms').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  uniqueIndex('generation_jobs_creator_idempotency_unique').on(table.createdBy, table.idempotencyKey),
-  index('generation_jobs_project_created_idx').on(table.projectId, table.createdAt),
-  index('generation_jobs_status_updated_idx').on(table.status, table.updatedAt),
-  index('generation_jobs_creator_status_idx').on(table.createdBy, table.status),
-  check('generation_jobs_progress_check', sql`${table.progress} between 0 and 100`),
-  check('generation_jobs_base_revision_check', sql`${table.baseRevision} >= 1`),
-]);
-
-export const generationInputFiles = pgTable('generation_input_files', {
-  generationId: uuid('generation_id').notNull().references(() => generationJobs.id, { onDelete: 'cascade' }),
-  path: text('path').notNull(),
-  content: text('content').notNull(),
-  contentHash: text('content_hash').notNull(),
-}, (table) => [
-  primaryKey({ columns: [table.generationId, table.path] }),
-  check('generation_input_files_path_check', sql`${table.path} in ('composition.html', 'styles.css', 'timeline.js', 'index.ts')`),
-]);
-
-export const generationMessages = pgTable('generation_messages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  threadId: uuid('thread_id').notNull().references(() => generationThreads.id, { onDelete: 'cascade' }),
-  generationId: uuid('generation_id').references(() => generationJobs.id, { onDelete: 'set null' }),
-  role: generationMessageRole('role').notNull(),
-  content: text('content').notNull(),
-  assetRefs: jsonb('asset_refs').$type<string[]>().default([]).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [index('generation_messages_thread_created_idx').on(table.threadId, table.createdAt)]);
-
-export const generationEvents = pgTable('generation_events', {
-  generationId: uuid('generation_id').notNull().references(() => generationJobs.id, { onDelete: 'cascade' }),
-  sequence: integer('sequence').notNull(),
-  type: generationEventType('type').notNull(),
-  status: generationStatus('status').notNull(),
-  stage: text('stage').notNull(),
-  progress: integer('progress').notNull(),
-  message: text('message'),
-  data: jsonb('data').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  primaryKey({ columns: [table.generationId, table.sequence] }),
-  index('generation_events_job_created_idx').on(table.generationId, table.createdAt),
-  check('generation_events_sequence_check', sql`${table.sequence} >= 1`),
-  check('generation_events_progress_check', sql`${table.progress} between 0 and 100`),
-]);
+}, (table) => [index('generation_runs_project_created_idx').on(table.projectId, table.createdAt)]);
 
 export const assets = pgTable('assets', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -246,7 +164,6 @@ export const artifacts = pgTable('artifacts', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  generationId: uuid('generation_id').references(() => generationJobs.id, { onDelete: 'cascade' }),
   kind: artifactKind('kind').notNull(),
   retention: artifactRetention('retention').notNull(),
   contentType: text('content_type').notNull(),
@@ -256,7 +173,6 @@ export const artifacts = pgTable('artifacts', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  index('artifacts_generation_created_idx').on(table.generationId, table.createdAt),
   index('artifacts_expiry_idx').on(table.expiresAt),
   check('artifacts_byte_size_check', sql`${table.byteSize} >= 0`),
 ]);

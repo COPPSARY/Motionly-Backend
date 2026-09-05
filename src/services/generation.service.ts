@@ -1,258 +1,112 @@
 import type {
-  CreateGenerationRequest,
-  EditGenerationRequest,
-  GenerationIntent,
-  GenerationStatus,
-  ModelProviderName,
-} from '../../packages/contracts/generations.js';
-import { MAX_GENERATION_ASSET_BYTES } from '../../packages/contracts/generations.js';
-import {
-  MOTIONLY_RUNTIME_VERSION,
-  MOTIONLY_SKILL_BUNDLE_VERSION,
-  createStarterSource,
-} from '../../packages/motionly-runtime/starter.js';
+    GraphProjectRepository,
+    GraphWorkspaceRole,
+    MotionGraphInput,
+    MotionGraphResponse,
+} from '../../packages/ai/graph/dependencies.js';
+import { ModelProviderError, type ProviderErrorCode } from '../../packages/ai/providers/model.provider.js';
 import { AppError } from '../errors.js';
-import type { ProjectSourceFiles } from './project.service.js';
-import type { WorkspaceRole } from './workspace.service.js';
 
-export interface GenerationRecord {
-  id: string;
-  workspaceId: string;
-  projectId: string;
-  threadId: string;
-  createdBy: string;
-  intent: GenerationIntent;
-  status: GenerationStatus;
-  stage: string;
-  progress: number;
-  baseSourceHash: string;
-  baseRevision: number;
-  outputSourceHash: string | null;
-  provider: ModelProviderName;
-  model: string;
-  errorCode: string | null;
-  errorMessage: string | null;
-  errorDetails: Record<string, unknown> | null;
-  startedAt: Date | null;
-  finishedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+/** The compiled Motionly graph, narrowed to what this service needs. */
+export interface MotionGraphRunner {
+    invoke(input: MotionGraphInput): Promise<{ response?: MotionGraphResponse | undefined }>;
 }
 
-export interface GenerationDefaults {
-  provider: ModelProviderName;
-  model: string;
-  runtimeVersion?: string;
-  skillBundleVersion?: string;
-  maxActivePerUser?: number;
+export type ProjectAccessReader = Pick<GraphProjectRepository, 'loadProjectAccess'>;
+
+export interface MessageRequestInput {
+    message: string;
+    runtimeError?: { message: string } | undefined;
+    revision?: number | undefined;
 }
 
-export interface GenerationRepository {
-  getWorkspaceMembership(workspaceId: string, userId: string): Promise<{ role: WorkspaceRole } | null>;
-  getProjectAccess(projectId: string, userId: string): Promise<{
-    project: { id: string; workspaceId: string; sourceHash: string; revision: number };
-    role: WorkspaceRole;
-  } | null>;
-  findByIdempotency(userId: string, idempotencyKey: string): Promise<GenerationRecord | null>;
-  createProjectGeneration(input: {
-    userId: string;
-    workspaceId: string;
-    request: CreateGenerationRequest;
-    idempotencyKey: string;
-    defaults: Required<GenerationDefaults>;
-    starterFiles: ProjectSourceFiles;
-  }): Promise<GenerationRecord>;
-  createEditGeneration(input: {
-    userId: string;
-    projectId: string;
-    workspaceId: string;
-    request: EditGenerationRequest;
-    idempotencyKey: string;
-    defaults: Required<GenerationDefaults>;
-  }): Promise<GenerationRecord>;
-  list(projectId: string, page: number, pageSize: number): Promise<{ data: GenerationRecord[]; totalItems: number }>;
-  getForUser(generationId: string, userId: string): Promise<GenerationRecord | null>;
-  requestCancellation(generationId: string): Promise<GenerationRecord | null>;
-  listEvents(generationId: string, afterSequence: number): Promise<Array<{
-    generationId: string;
-    sequence: number;
-    type: string;
-    status: GenerationStatus;
-    stage: string;
-    progress: number;
-    message: string | null;
-    data: Record<string, unknown> | null;
-    createdAt: Date;
-  }>>;
-  countActiveForUser(userId: string): Promise<number>;
-  summarizeReadyAssets(workspaceId: string, assetIds: string[]): Promise<{ count: number; totalBytes: number }>;
-}
+export type MessageResult =
+    | { type: 'chat'; message: string }
+    | { type: 'plan'; message: string }
+    | { type: 'generation'; message: string; projectId: string; revision: number };
 
+const PROVIDER_STATUS: Record<ProviderErrorCode, number> = {
+    PROVIDER_RATE_LIMITED: 429,
+    PROVIDER_TIMEOUT: 504,
+    PROVIDER_UNAVAILABLE: 503,
+    PROVIDER_MODEL_UNAVAILABLE: 502,
+    PROVIDER_OUTPUT_INVALID: 502,
+    PROVIDER_AUTH_FAILED: 502,
+    PROVIDER_ERROR: 502,
+};
+
+const PROVIDER_MESSAGE: Record<ProviderErrorCode, string> = {
+    PROVIDER_RATE_LIMITED: 'Motionly is handling too many generations right now. Try again shortly.',
+    PROVIDER_TIMEOUT: 'The model took too long to answer. Try again.',
+    PROVIDER_UNAVAILABLE: 'The model is temporarily unavailable. Try again shortly.',
+    PROVIDER_MODEL_UNAVAILABLE: 'The configured model is unavailable.',
+    PROVIDER_OUTPUT_INVALID: 'The model returned an unusable response. Try again.',
+    PROVIDER_AUTH_FAILED: 'Motionly cannot reach the model right now.',
+    PROVIDER_ERROR: 'The generation could not be completed. Try again.',
+};
+
+/**
+ * Runs one Motionly turn against one project. Project access is checked here so a
+ * message never reaches the model for a project the caller cannot edit, and every
+ * graph outcome becomes an HTTP result.
+ */
 export class GenerationService {
-  private readonly defaults: Required<GenerationDefaults>;
+    constructor(
+        private readonly graph: MotionGraphRunner,
+        private readonly projects: ProjectAccessReader,
+    ) {}
 
-  constructor(private readonly repository: GenerationRepository, defaults: GenerationDefaults) {
-    this.defaults = {
-      ...defaults,
-      runtimeVersion: defaults.runtimeVersion ?? MOTIONLY_RUNTIME_VERSION,
-      skillBundleVersion: defaults.skillBundleVersion ?? MOTIONLY_SKILL_BUNDLE_VERSION,
-      maxActivePerUser: defaults.maxActivePerUser ?? 3,
-    };
-  }
+    async sendMessage(userId: string, projectId: string, input: MessageRequestInput): Promise<MessageResult> {
+        const access = await this.projects.loadProjectAccess(projectId, userId);
+        if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
+        requireWriteAccess(access.role);
 
-  async create(
-    userId: string,
-    workspaceId: string,
-    request: CreateGenerationRequest,
-    idempotencyKey: string,
-  ) {
-    const duplicate = await this.repository.findByIdempotency(userId, idempotencyKey);
-    if (duplicate) return toGenerationResource(duplicate);
-    await this.requireCapacity(userId);
-    const membership = await this.repository.getWorkspaceMembership(workspaceId, userId);
-    if (!membership) throw new AppError(404, 'WORKSPACE_NOT_FOUND', 'Workspace not found.');
-    this.requireWriteAccess(membership.role);
-    await this.requireAssets(workspaceId, request.assetIds);
-    const starterFiles: ProjectSourceFiles = createStarterSource(request.project);
-    const created = await this.repository.createProjectGeneration({
-      userId,
-      workspaceId,
-      request,
-      idempotencyKey,
-      defaults: this.defaults,
-      starterFiles,
-    });
-    return toGenerationResource(created);
-  }
+        const state = await this.invokeGraph({
+            userId,
+            workspaceId: access.workspaceId,
+            projectId,
+            message: input.message,
+            ...(input.runtimeError ? { runtimeError: input.runtimeError } : {}),
+            ...(input.revision !== undefined ? { revision: input.revision } : {}),
+        });
 
-  async edit(
-    userId: string,
-    projectId: string,
-    request: EditGenerationRequest,
-    idempotencyKey: string,
-  ) {
-    const duplicate = await this.repository.findByIdempotency(userId, idempotencyKey);
-    if (duplicate) return toGenerationResource(duplicate);
-    await this.requireCapacity(userId);
-    const access = await this.repository.getProjectAccess(projectId, userId);
-    if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
-    this.requireWriteAccess(access.role);
-    if (access.project.revision !== request.baseRevision || access.project.sourceHash !== request.baseSourceHash) {
-      throw new AppError(409, 'REVISION_CONFLICT', 'The project changed since it was loaded.', {
-        currentRevision: access.project.revision,
-        currentSourceHash: access.project.sourceHash,
-      });
+        const response = state.response;
+        if (!response) throw new Error('The Motionly graph finished without a response.');
+        if (response.type === 'error') throw toAppError(response);
+        if (response.type !== 'generation') return response;
+        return {
+            type: 'generation',
+            message: response.message,
+            projectId: response.projectId,
+            revision: response.revision,
+        };
     }
-    await this.requireAssets(access.project.workspaceId, request.assetIds);
-    const created = await this.repository.createEditGeneration({
-      userId,
-      projectId,
-      workspaceId: access.project.workspaceId,
-      request,
-      idempotencyKey,
-      defaults: this.defaults,
-    });
-    return toGenerationResource(created);
-  }
 
-  async list(userId: string, projectId: string, page: number, pageSize: number) {
-    const access = await this.repository.getProjectAccess(projectId, userId);
-    if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
-    const result = await this.repository.list(projectId, page, pageSize);
-    return {
-      data: result.data.map(toGenerationResource),
-      pagination: {
-        page,
-        pageSize,
-        totalItems: result.totalItems,
-        totalPages: Math.ceil(result.totalItems / pageSize),
-      },
-    };
-  }
-
-  async get(userId: string, generationId: string) {
-    const record = await this.repository.getForUser(generationId, userId);
-    if (!record) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
-    return toGenerationResource(record);
-  }
-
-  async cancel(userId: string, generationId: string) {
-    const record = await this.repository.getForUser(generationId, userId);
-    if (!record) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
-    if (record.status === 'CANCELLED' || record.status === 'CANCELLING') return toGenerationResource(record);
-    if (['COMPLETED', 'FAILED'].includes(record.status)) {
-      throw new AppError(409, 'GENERATION_ALREADY_TERMINAL', 'The generation can no longer be cancelled.');
+    private async invokeGraph(input: MotionGraphInput) {
+        try {
+            return await this.graph.invoke(input);
+        } catch (error) {
+            if (error instanceof ModelProviderError) {
+                throw new AppError(PROVIDER_STATUS[error.code], error.code, PROVIDER_MESSAGE[error.code]);
+            }
+            throw error;
+        }
     }
-    const updated = await this.repository.requestCancellation(generationId);
-    if (!updated) throw new AppError(409, 'GENERATION_ALREADY_TERMINAL', 'The generation can no longer be cancelled.');
-    return toGenerationResource(updated);
-  }
-
-  async events(userId: string, generationId: string, afterSequence: number) {
-    const record = await this.repository.getForUser(generationId, userId);
-    if (!record) throw new AppError(404, 'GENERATION_NOT_FOUND', 'Generation not found.');
-    const events = await this.repository.listEvents(generationId, afterSequence);
-    const terminal = ['COMPLETED', 'CANCELLED', 'FAILED'].includes(record.status);
-    return {
-      events: events.map((event) => ({
-        ...event,
-        createdAt: event.createdAt.toISOString(),
-      })),
-      // A full page may have more durable events after it. Let the SSE controller
-      // advance the cursor and drain another page before closing a terminal job.
-      isTerminal: terminal && events.length < 500,
-    };
-  }
-
-  private requireWriteAccess(role: WorkspaceRole) {
-    if (role === 'viewer') throw new AppError(403, 'FORBIDDEN', 'Viewer access is read-only.');
-  }
-
-  private async requireCapacity(userId: string) {
-    const active = await this.repository.countActiveForUser(userId);
-    if (active >= this.defaults.maxActivePerUser) {
-      throw new AppError(429, 'GENERATION_LIMIT_EXCEEDED', 'Too many active generation jobs.', {
-        limit: this.defaults.maxActivePerUser,
-      });
-    }
-  }
-
-  private async requireAssets(workspaceId: string, assetIds: string[]) {
-    if (!assetIds.length) return;
-    const uniqueIds = [...new Set(assetIds)];
-    const summary = await this.repository.summarizeReadyAssets(workspaceId, uniqueIds);
-    if (summary.count !== uniqueIds.length) throw new AppError(422, 'ASSET_NOT_READY', 'One or more assets are missing or not ready.');
-    if (summary.totalBytes > MAX_GENERATION_ASSET_BYTES) {
-      throw new AppError(422, 'ASSET_BUDGET_EXCEEDED', 'Selected assets exceed the generation workspace budget.', {
-        maxBytes: MAX_GENERATION_ASSET_BYTES,
-        selectedBytes: summary.totalBytes,
-      });
-    }
-  }
 }
 
-export function toGenerationResource(record: GenerationRecord) {
-  return {
-    id: record.id,
-    workspaceId: record.workspaceId,
-    projectId: record.projectId,
-    threadId: record.threadId,
-    intent: record.intent,
-    status: record.status,
-    stage: record.stage,
-    progress: record.progress,
-    baseSourceHash: record.baseSourceHash,
-    baseRevision: record.baseRevision,
-    outputSourceHash: record.outputSourceHash,
-    provider: record.provider,
-    model: record.model,
-    createdAt: record.createdAt.toISOString(),
-    startedAt: record.startedAt?.toISOString() ?? null,
-    finishedAt: record.finishedAt?.toISOString() ?? null,
-    error: record.errorCode && record.errorMessage ? {
-      code: record.errorCode,
-      message: record.errorMessage,
-      ...(record.errorDetails ? { details: record.errorDetails } : {}),
-    } : null,
-  };
+function requireWriteAccess(role: GraphWorkspaceRole): void {
+    if (role === 'viewer') throw new AppError(403, 'FORBIDDEN', 'Viewer access is read-only.');
+}
+
+function toAppError(response: Extract<MotionGraphResponse, { type: 'error' }>): AppError {
+    switch (response.code) {
+        case 'PROJECT_NOT_FOUND':
+            return new AppError(404, response.code, response.message);
+        case 'FORBIDDEN':
+            return new AppError(403, response.code, response.message);
+        case 'REVISION_CONFLICT':
+            return new AppError(409, response.code, response.message, { currentRevision: response.currentRevision });
+        case 'GENERATION_INVALID':
+            return new AppError(422, response.code, response.message, { errors: response.errors });
+    }
 }

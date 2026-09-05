@@ -3,18 +3,10 @@ import { z } from 'zod';
 
 import type {
   CreateProjectInput,
-  ProjectSourceFiles,
-  SaveProjectSourceInput,
   UpdateProjectInput,
 } from '../services/project.service.js';
 import type { AuthenticatedRequest } from '../types/http.js';
 
-const sourceFilesSchema = z.strictObject({
-  'composition.html': z.string().min(1).max(1_000_000),
-  'styles.css': z.string().max(1_000_000),
-  'timeline.js': z.string().min(1).max(1_000_000),
-  'index.ts': z.string().min(1).max(1_000_000),
-});
 const dimensionsSchema = {
   width: z.number().int().min(1).max(16_384),
   height: z.number().int().min(1).max(16_384),
@@ -24,7 +16,9 @@ const dimensionsSchema = {
 const createProjectSchema = z.strictObject({
   name: z.string().trim().min(1).max(120),
   ...dimensionsSchema,
-  files: sourceFilesSchema,
+  scenes: z.array(z.record(z.string(), z.unknown())).optional(),
+  compositionHtml: z.string().min(1).max(1_000_000).optional(),
+  timelineJs: z.string().min(1).max(1_000_000).optional(),
 });
 const updateProjectSchema = z.strictObject({
   revision: z.number().int().min(1),
@@ -33,12 +27,11 @@ const updateProjectSchema = z.strictObject({
   height: dimensionsSchema.height.optional(),
   fps: dimensionsSchema.fps.optional(),
   duration: dimensionsSchema.duration.optional(),
+  scenes: z.array(z.record(z.string(), z.unknown())).optional(),
+  compositionHtml: z.string().min(1).max(1_000_000).optional(),
+  timelineJs: z.string().min(1).max(1_000_000).optional(),
 }).refine((input) => Object.keys(input).some((key) => key !== 'revision'), {
   message: 'At least one project field must be updated.',
-});
-const saveSourceSchema = z.strictObject({
-  revision: z.number().int().min(1),
-  files: sourceFilesSchema,
 });
 const revisionSchema = z.strictObject({ revision: z.number().int().min(1) });
 const idSchema = z.string().uuid();
@@ -49,9 +42,6 @@ export interface ProjectControllerService {
   get(userId: string, projectId: string): Promise<unknown>;
   update(userId: string, projectId: string, input: UpdateProjectInput): Promise<unknown>;
   remove(userId: string, projectId: string, revision: number): Promise<void>;
-  getSource(userId: string, projectId: string): Promise<unknown>;
-  getPreview(userId: string, projectId: string): Promise<unknown>;
-  saveSource(userId: string, projectId: string, input: SaveProjectSourceInput): Promise<unknown>;
 }
 
 export class ProjectController {
@@ -73,6 +63,18 @@ export class ProjectController {
     response.json({ data: await this.projects.get(request.principal!.user.id, projectId) });
   };
 
+  getFiles = async (request: AuthenticatedRequest, response: Response) => {
+    const projectId = idSchema.parse(request.params.projectId);
+    const project = await this.projects.get(request.principal!.user.id, projectId) as {
+      compositionHtml: string;
+      timelineJs: string;
+    };
+    response.json({ data: {
+      'composition.html': project.compositionHtml,
+      'timeline.js': project.timelineJs,
+    } });
+  };
+
   update = async (request: AuthenticatedRequest, response: Response) => {
     const projectId = idSchema.parse(request.params.projectId);
     const input = updateProjectSchema.parse(request.body) as UpdateProjectInput;
@@ -84,22 +86,6 @@ export class ProjectController {
     const { revision } = revisionSchema.parse(request.body);
     await this.projects.remove(request.principal!.user.id, projectId, revision);
     response.status(204).end();
-  };
-
-  getSource = async (request: AuthenticatedRequest, response: Response) => {
-    const projectId = idSchema.parse(request.params.projectId);
-    response.json({ data: await this.projects.getSource(request.principal!.user.id, projectId) });
-  };
-
-  getPreview = async (request: AuthenticatedRequest, response: Response) => {
-    const projectId = idSchema.parse(request.params.projectId);
-    response.json({ data: await this.projects.getPreview(request.principal!.user.id, projectId) });
-  };
-
-  saveSource = async (request: AuthenticatedRequest, response: Response) => {
-    const projectId = idSchema.parse(request.params.projectId);
-    const input = saveSourceSchema.parse(request.body) as { revision: number; files: ProjectSourceFiles; message?: string };
-    response.json({ data: await this.projects.saveSource(request.principal!.user.id, projectId, input) });
   };
 
 }
