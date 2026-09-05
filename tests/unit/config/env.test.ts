@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseEnvironment } from '../../../apps/api/src/config/env.js';
+import { parseEnvironment } from '../../../src/config/env.js';
 
 const valid = {
   NODE_ENV: 'production',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { TokenVault } from '../../../packages/auth/src/token-vault.js';
+import { TokenVault } from '../../../packages/auth/token-vault.js';
 
 describe('TokenVault', () => {
   const key = Buffer.alloc(32, 7).toString('base64');

@@ -6,7 +6,7 @@ import {
   type ProjectRecord,
   type ProjectRepository,
   type ProjectSourceFiles,
-} from '../../../apps/api/src/services/project.service.js';
+} from '../../../src/services/project.service.js';
 
 const userId = '00000000-0000-4000-8000-000000000001';
 const workspaceId = '00000000-0000-4000-8000-000000000002';

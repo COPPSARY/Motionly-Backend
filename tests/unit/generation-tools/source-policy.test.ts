@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateMotionlySource } from '../../../packages/generation-tools/src/source-policy.js';
-import { STARTER_SOURCE_FILES } from '../../../packages/motionly-runtime/src/starter.js';
+import { validateMotionlySource } from '../../../packages/generation-tools/source-policy.js';
+import { STARTER_SOURCE_FILES } from '../../../packages/motionly-runtime/starter.js';
 
 describe('Motionly source policy', () => {
   it('reports registered and editable layers from source files', () => {

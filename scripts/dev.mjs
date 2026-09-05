@@ -2,8 +2,7 @@ import { spawn } from 'node:child_process';
 
 const shared = ['--env-file=.env', '--watch', '--import', './scripts/process-identity.mjs', '--import', 'tsx'];
 const children = [
-  spawn(process.execPath, [...shared, 'apps/api/src/server.ts'], { stdio: 'inherit' }),
-  spawn(process.execPath, [...shared, 'apps/generation-worker/src/worker.ts'], { stdio: 'inherit' }),
+  spawn(process.execPath, [...shared, 'src/server.ts'], { stdio: 'inherit' }),
 ];
 
 let stopping = false;

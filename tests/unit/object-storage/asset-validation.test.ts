@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { validateAssetMetadata, validateStoredAsset } from '../../../packages/object-storage/src/asset-validation.js';
+import { validateAssetMetadata, validateStoredAsset } from '../../../packages/object-storage/asset-validation.js';
 
 const directories: string[] = [];
 afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));

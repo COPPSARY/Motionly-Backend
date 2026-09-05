@@ -1,7 +1,7 @@
 import type { GoogleGenAI } from '@google/genai';
 import { describe, expect, it, vi } from 'vitest';
 
-import { GeminiModelProvider } from '../../../packages/ai-providers/src/gemini.js';
+import { GeminiModelProvider } from '../../../packages/ai-providers/gemini.js';
 
 const input = {
   model: 'gemini-test',

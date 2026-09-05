@@ -2,8 +2,8 @@ import pino, { type DestinationStream } from 'pino';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../apps/api/src/server.js';
-import { AppError } from '../../apps/api/src/errors.js';
+import { createApp } from '../../src/server.js';
+import { AppError } from '../../src/errors.js';
 
 describe('HTTP logging', () => {
   it('logs a concise request summary without headers or request objects', async () => {

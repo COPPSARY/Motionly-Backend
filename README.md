@@ -44,7 +44,6 @@ V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, on
 | ORM and migrations | Drizzle ORM and Drizzle Kit | Generated SQL migrations are committed |
 | Authentication | Adapter-based JWT/OIDC authentication | Supabase Auth can be the first adapter |
 | Object storage | Deferred to V1 Area 3 | Provider will be selected when asset storage is implemented |
-| Job queue | Queue adapter | PostgreSQL/Supabase Queues initially; Redis/BullMQ when needed |
 | Rendering | Separate Node.js worker in an isolated container | Never runs inside the API process |
 | Local development | Supabase | Supabase provides database and authentication |
 | API documentation | OpenAPI | Used to generate or verify frontend contracts |
@@ -85,6 +84,8 @@ The first implementation is a modular monolith with two processes:
 Only the renderer is separated from the API initially. Additional microservices should be introduced only when measured operational requirements justify them.
 
 ## Proposed repository structure
+
+The current backend source lives in the repository-root `src/` directory. The following diagram is retained as an earlier architecture proposal.
 
 ```text
 motionly_backend/
@@ -385,7 +386,6 @@ SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
 SESSION_ENCRYPTION_KEY=replace_with_base64_encoded_32_byte_key
 SESSION_COOKIE_SECURE=false
 
-QUEUE_PROVIDER=postgres
 RENDER_JOB_TIMEOUT_SECONDS=900
 RENDER_MAX_ATTEMPTS=3
 ```

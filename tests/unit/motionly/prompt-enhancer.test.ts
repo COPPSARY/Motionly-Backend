@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { enhanceMotionlyPrompt } from '../../../packages/motionly-skills/src/prompt-enhancer.js';
+import { enhanceMotionlyPrompt } from '../../../packages/motionly-skills/prompt-enhancer.js';
 
 describe('Motionly prompt enhancer', () => {
   it('adds the SaaS film structure without changing the original request', () => {

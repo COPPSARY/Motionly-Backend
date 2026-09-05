@@ -4,16 +4,16 @@ import { and, eq } from 'drizzle-orm';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
-import type { AuthProvider } from '../../packages/auth/src/types.js';
-import { TokenVault } from '../../packages/auth/src/token-vault.js';
-import { createDatabase } from '../../packages/database/src/client.js';
-import { projectFiles, projects, users, workspaceMembers, workspaces } from '../../packages/database/src/schema.js';
-import { DatabaseSessionStore } from '../../apps/api/src/repositories/auth.repository.js';
-import { DatabaseProjectRepository } from '../../apps/api/src/repositories/project.repository.js';
-import { DatabaseWorkspaceRepository } from '../../apps/api/src/repositories/workspace.repository.js';
-import { createApp } from '../../apps/api/src/server.js';
-import { ProjectService } from '../../apps/api/src/services/project.service.js';
-import { WorkspaceService } from '../../apps/api/src/services/workspace.service.js';
+import type { AuthProvider } from '../../packages/auth/types.js';
+import { TokenVault } from '../../packages/auth/token-vault.js';
+import { createDatabase } from '../../packages/database/client.js';
+import { projectFiles, projects, users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
+import { DatabaseSessionStore } from '../../src/repositories/auth.repository.js';
+import { DatabaseProjectRepository } from '../../src/repositories/project.repository.js';
+import { DatabaseWorkspaceRepository } from '../../src/repositories/workspace.repository.js';
+import { createApp } from '../../src/server.js';
+import { ProjectService } from '../../src/services/project.service.js';
+import { WorkspaceService } from '../../src/services/workspace.service.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const encryptionKey = process.env.SESSION_ENCRYPTION_KEY;
