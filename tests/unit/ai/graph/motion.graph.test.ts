@@ -104,10 +104,16 @@ function createHarness(options: HarnessOptions = {}) {
         recordRun: vi.fn(async () => {}),
     };
 
-    const graph = createMotionGraph({ provider, repository, model: 'fake-model' });
+    const onSkillsSelected = vi.fn();
+    const graph = createMotionGraph({
+        provider,
+        repository,
+        model: 'fake-model',
+        onSkillsSelected,
+    });
     const structured = vi.spyOn(provider, 'structured');
 
-    return { graph, provider, repository, generateRequests, structured };
+    return { graph, provider, repository, generateRequests, structured, onSkillsSelected };
 }
 
 function input(message: string, overrides: Partial<MotionGraphInput> = {}): MotionGraphInput {
@@ -128,6 +134,7 @@ describe('createMotionGraph', () => {
         expect(result.response).toEqual({ type: 'chat', message: 'Hi! What would you like to create?' });
         expect(harness.repository.loadForGraph).not.toHaveBeenCalled();
         expect(harness.repository.overwriteForGraph).not.toHaveBeenCalled();
+        expect(harness.onSkillsSelected).not.toHaveBeenCalled();
     });
 
     it('returns a plan without loading context or writing project state', async () => {
@@ -139,6 +146,7 @@ describe('createMotionGraph', () => {
         expect(harness.repository.loadForGraph).not.toHaveBeenCalled();
         expect(harness.repository.overwriteForGraph).not.toHaveBeenCalled();
         expect(harness.repository.recordRun).not.toHaveBeenCalled();
+        expect(harness.onSkillsSelected).not.toHaveBeenCalled();
     });
 
     it('atomically overwrites the project with a validated candidate', async () => {
@@ -178,16 +186,32 @@ describe('createMotionGraph', () => {
         });
     });
 
-    it('sends core Motionly skill guidance and the current project source to the model', async () => {
+    it('sends every relevant Motionly skill and the current project source to the model', async () => {
         const harness = createHarness({ intent: 'EDIT' });
-        const core = (await loadSkillBundle()).skills.find((skill) => skill.id === 'core');
+        const bundle = await loadSkillBundle();
+        const expected = bundle.skills.filter((skill) => ['core', 'typography', 'timeline'].includes(skill.id));
 
-        const result = await harness.graph.invoke(input('Make the headline larger.'));
+        const result = await harness.graph.invoke(input('Make the title typography larger and retime the timeline duration.'));
 
-        expect(result.selectedSkills?.map((skill) => skill.id)).toContain('core');
-        expect(harness.generateRequests[0]?.systemInstructions).toContain(core?.content ?? 'missing core skill');
+        expect(result.selectedSkills?.map((skill) => skill.id)).toEqual(expect.arrayContaining(
+            expected.map((skill) => skill.id),
+        ));
+        for (const skill of expected) {
+            expect(harness.generateRequests[0]?.systemInstructions).toContain(skill.content);
+        }
+        const selectedSkills = result.selectedSkills ?? [];
+        expect(harness.onSkillsSelected).toHaveBeenCalledOnce();
+        expect(harness.onSkillsSelected).toHaveBeenCalledWith({
+            intent: 'EDIT',
+            manifestVersion: bundle.manifest.version,
+            skills: selectedSkills.map(({ id, reason }) => ({ id, reason })),
+            totalCharacters: selectedSkills.reduce(
+                (total, skill) => total + skill.content.length,
+                0,
+            ),
+        });
         expect(harness.generateRequests[0]?.prompt).toContain(currentProject.compositionHtml);
-        expect(harness.generateRequests[0]?.prompt).toContain('Make the headline larger.');
+        expect(harness.generateRequests[0]?.prompt).toContain('Make the title typography larger and retime the timeline duration.');
     });
 
     it('routes a reported runtime error to FIX without asking the model to classify it', async () => {

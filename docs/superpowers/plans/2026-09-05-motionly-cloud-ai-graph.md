@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the legacy four-file and queue-based generation backend with a direct LangGraph workflow that safely creates, edits, plans, and repairs Motionly projects through one workspace `/generations` API.
+**Goal:** Replace the legacy four-file and queue-based generation backend with a direct LangGraph workflow that safely chats, plans, edits, and repairs an existing Motionly project through one project `/messages` API.
 
 **Architecture:** Express authenticates and invokes a dependency-injected LangGraph `StateGraph` synchronously. The graph classifies intent, uses bounded project/message context and selected skills, validates or repairs a structured candidate, then atomically overwrites the current two-field project revision. PostgreSQL stores the current project, recent messages, and direct-run diagnostics; it never stores queued jobs for this workflow.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Execute the graph directly during the HTTP request; do not create a queue, worker, job polling endpoint, or streaming requirement.
-- Use only `POST /v1/workspaces/:workspaceId/generations`; `projectId`, `revision`, and `runtimeError` are optional input to that route, and `runtimeError` selects `FIX`.
+- Use only `POST /v1/projects/:projectId/messages`; `revision` and `runtimeError` are optional input, and `runtimeError` selects `FIX`.
 - Persist only `compositionHtml` and `timelineJs`; CSS is embedded in `compositionHtml`.
 - `PLAN` and `CHAT` never mutate a project or create a generation run.
 - Validate generated source without executing it; reject forbidden browser/network/storage APIs and every import.
@@ -330,7 +330,7 @@ Dependencies are closures injected into every node rather than globals, so tests
 
 - [x] **Step 4: Implement node behavior and conditional edges**
 
-Use `provider.structured(... intentSchema ...)` in `classifyIntent`; bypass classification to `FIX` only when `runtimeError` exists. `chat` and `plan` use provider chat and return immediately. `loadContext` enforces access, short-circuits when no project is addressed, and loads at most 12 recent messages. `selectSkills` loads bundle v1 and routes `FIX` through edit/repair guidance. `generate` builds the motion prompt from current project fields and selected skill content. `validate` writes diagnostics; `repair` includes original request, current candidate, diagnostics, and selected skills. Route `repairAttempts >= 2` to a failed response and no overwrite. Route valid candidates to `saveProject`, which creates the project when none was addressed and otherwise overwrites the addressed revision.
+Use `provider.structured(... intentSchema ...)` in `classifyIntent`; bypass classification to `FIX` only when `runtimeError` exists. `chat` and `plan` use provider chat and return immediately. `loadContext` enforces access and loads at most 12 recent messages. `selectSkills` loads bundle v1 and routes `FIX` through edit/repair guidance. `generate` builds the motion prompt from current project fields and selected skill content. `validate` writes diagnostics; `repair` includes original request, current candidate, diagnostics, and selected skills. Route `repairAttempts >= 2` to a failed response and no overwrite. Route valid candidates to `saveProject`, which overwrites the addressed revision.
 
 Graph wiring:
 
@@ -358,7 +358,7 @@ Run: `npm test -- tests/unit/ai/graph/motion.graph.test.ts tests/unit/motionly/s
 
 Expected: tests cover CHAT, PLAN, CREATE/EDIT, FIX, repair success, repair exhaustion, selected skills, and no mutation for non-generation paths.
 
-### Task 5: Add one workspace generation endpoint and wire direct graph execution
+### Task 5: Add one project message endpoint and wire direct graph execution
 
 **Files:**
 - Create: `src/services/generation.service.ts`
@@ -376,29 +376,37 @@ Expected: tests cover CHAT, PLAN, CREATE/EDIT, FIX, repair success, repair exhau
 - Test: `tests/integration/app.test.ts`
 
 **Interfaces:**
-- Produces `GenerationService.generate(userId, workspaceId, input): Promise<GenerationResult>`.
-- Consumes the compiled graph and validates request body `{ message, projectId?, runtimeError?, revision? }`.
+- Produces `GenerationService.sendMessage(userId, projectId, input): Promise<MessageResult>`.
+- Consumes the compiled graph and validates request body `{ message, runtimeError?, revision? }`.
 
 - [x] **Step 1: Write failing route tests**
 
 ```ts
 const response = await authenticated(request(app))
-  .post(`/v1/workspaces/${workspaceId}/generations`)
-  .send({ message: 'Make me a launch animation.' });
+  .post(`/v1/projects/${projectId}/messages`)
+  .send({ message: 'Make the headline larger.', revision: 7 });
 
-expect(response.status).toBe(201);
-expect(response.body.data).toMatchObject({ type: 'generation', created: true });
-expect(generations.generate).toHaveBeenCalledWith(user.id, workspaceId, { message: 'Make me a launch animation.' });
+expect(response.status).toBe(200);
+expect(response.body.data).toMatchObject({
+  type: 'generation',
+  response: 'Updated the headline.',
+  projectId,
+  revision: 8,
+});
+expect(generations.sendMessage).toHaveBeenCalledWith(user.id, projectId, {
+  message: 'Make the headline larger.',
+  revision: 7,
+});
 ```
 
 ```ts
 await authenticated(request(app))
-  .post(`/v1/workspaces/${workspaceId}/generations`)
+  .post(`/v1/projects/${projectId}/messages`)
   .send({ message: 'Fix it', runtimeError: { message: 'null root' } })
   .expect(400);
 ```
 
-The second test proves a FIX request requires `projectId` and `revision`.
+The second test proves a FIX request requires `revision`; `projectId` comes from the route.
 
 - [x] **Step 2: Run the route test and confirm failure**
 
@@ -409,22 +417,18 @@ Expected: FAIL with route not found or missing controller module.
 - [x] **Step 3: Implement service, controller, and route**
 
 ```ts
-const generationRequestSchema = z.strictObject({
+const messageSchema = z.strictObject({
   message: z.string().trim().min(1).max(20_000),
-  projectId: z.string().uuid().optional(),
   runtimeError: z.strictObject({ message: z.string().trim().min(1).max(4_000) }).optional(),
   revision: z.number().int().min(1).optional(),
 }).superRefine((value, context) => {
-  if (value.revision !== undefined && value.projectId === undefined) {
-    context.addIssue({ code: 'custom', path: ['projectId'], message: 'projectId is required when revision is sent.' });
-  }
   if (value.runtimeError && value.revision === undefined) {
     context.addIssue({ code: 'custom', path: ['revision'], message: 'revision is required for runtime repair.' });
   }
 });
 ```
 
-Mount `POST /v1/workspaces/:workspaceId/generations` after authentication, with `requireCsrf` and a per-user rate limit. The service checks workspace membership and write access before invoking the graph, so a non-member never reaches the model. Build one configured provider factory from `AI_PROVIDER`, `AI_MODEL`, and the matching API key. Pass it to `createMotionGraph`; do not instantiate a model inside a route handler.
+Mount `POST /v1/projects/:projectId/messages` after authentication, with `requireCsrf` and a per-user rate limit. The service checks project write access before invoking the graph, so an unauthorized caller never reaches the model. Build one configured provider factory from `AI_PROVIDER`, `AI_MODEL`, and the matching API key. Pass it to `createMotionGraph`; do not instantiate a model inside a route handler.
 
 - [x] **Step 4: Remove legacy queue startup wiring and deleted contract imports**
 
@@ -432,9 +436,9 @@ Remove the queue `GenerationService`, generation repository, queue endpoints, an
 
 - [x] **Step 5: Run HTTP integration tests**
 
-Run: `npm test -- tests/integration/generations.test.ts tests/integration/app.test.ts`
+Run: `npm test -- tests/integration/app.test.ts`
 
-Expected: authenticated/CSRF generation calls work; unauthenticated calls return 401; missing CSRF returns 403; a created project returns 201 and an overwrite returns 200; a runtime error without `projectId`/`revision` returns 400.
+Expected: authenticated/CSRF project-message calls work; unauthenticated calls return 401; missing CSRF returns 403; successful chat, plan, and generation results return 200 with assistant text in `response`; a runtime error without `revision` returns 400.
 
 ### Task 6: Remove legacy references and verify the MVP end-to-end
 
@@ -458,7 +462,7 @@ Expected: the Task 3 migration test passes and `project_files` is absent.
 
 - [ ] **Step 2: Update tests to remove queue and four-file assumptions**
 
-Replace tests of the queued `/generations` job API, events, cancellation, source bundles, and preview bundling with tests of the direct workspace `/generations` route, current project reads, direct-run records, repair limits, and revision conflicts. Delete tests only when their corresponding legacy production capability is removed.
+Replace tests of the queued `/generations` job API, events, cancellation, source bundles, and preview bundling with tests of the direct project `/messages` route, current project reads, direct-run records, repair limits, and revision conflicts. Delete tests only when their corresponding legacy production capability is removed.
 
 - [ ] **Step 3: Run complete verification**
 
@@ -478,4 +482,4 @@ Expected: all tests/typecheck/build pass; the search returns no active legacy qu
 
 Invoke the compiled graph in an integration test with a fake provider and a real transaction-capable repository. Confirm CHAT/PLAN do not alter `projects`, a valid EDIT increments revision once, a malformed output is repaired at most twice, and a stale expected revision yields `REVISION_CONFLICT` without changing persisted fields.
 
-Covered by `tests/integration/generation-graph.test.ts`, which drives the HTTP route through `GenerationService` and the compiled graph against an in-memory repository: a first request creates the project and answers 201, a second edits it to revision 2 and answers 200, a stale revision answers 409 without recording a run, and a CHAT request writes nothing. The repair-limit path is covered by the graph unit tests, and the PostgreSQL repository itself is covered by `tests/integration/motion-graph.repository.test.ts` whenever `DATABASE_URL` is set.
+Covered by graph and service tests that drive `GenerationService` and the compiled graph against test repositories: a valid generation edits the addressed project and answers 200, a stale revision answers 409 without recording a run, and CHAT/PLAN requests write nothing. The repair-limit path is covered by graph unit tests, and the PostgreSQL repository itself is covered by `tests/integration/motion-graph.repository.test.ts` whenever `DATABASE_URL` is set.

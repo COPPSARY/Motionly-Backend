@@ -4,16 +4,15 @@
 
 Build the V1 Motionly Cloud AI workflow in this backend. Express runs the graph during the request. The frontend remains the only renderer. Do not add queues, workers, generated assets, rendering, or immutable project versions.
 
-This specification resolves one change from `docs/cloud-ai-implementation.md`: V1 uses one workspace generation route, not a separate runtime-fix route.
+This specification resolves one change from `docs/cloud-ai-implementation.md`: V1 uses one project message route, including runtime repair.
 
 ## API
 
-`POST /v1/workspaces/:workspaceId/generations` is authenticated and CSRF-protected.
+`POST /v1/projects/:projectId/messages` is authenticated and CSRF-protected.
 
 ```json
 {
   "message": "Make the title larger",
-  "projectId": "9a4f2e10-7b53-4a1c-9f0d-2c8b6d5e1a33",
   "runtimeError": {
     "message": "Cannot read properties of null"
   },
@@ -21,23 +20,23 @@ This specification resolves one change from `docs/cloud-ai-implementation.md`: V
 }
 ```
 
-`projectId`, `runtimeError`, and `revision` are optional. Omitting `projectId` creates a project in the workspace; sending it addresses that project. A present `runtimeError` selects `FIX` and requires `projectId` and `revision`. Otherwise the graph classifies the message as `CHAT`, `PLAN`, `CREATE`, or `EDIT`.
+`runtimeError` and `revision` are optional. The route addresses an existing project. A present `runtimeError` selects `FIX` and requires `revision`. Otherwise the graph classifies the message as `CHAT`, `PLAN`, `CREATE`, or `EDIT`.
 
 Responses are one of:
 
 ```json
-{ "type": "chat", "message": "..." }
+{ "type": "chat", "response": "..." }
 ```
 
 ```json
-{ "type": "plan", "message": "..." }
+{ "type": "plan", "response": "..." }
 ```
 
 ```json
-{ "type": "generation", "message": "...", "projectId": "...", "revision": 8, "created": false }
+{ "type": "generation", "response": "...", "projectId": "...", "revision": 8 }
 ```
 
-A created project answers `201`; every other outcome answers `200`. Payloads are wrapped in the API's `{ "data": ... }` envelope.
+Every successful outcome answers `200`. Payloads are wrapped in the API's `{ "data": ... }` envelope.
 
 `GET /v1/projects/:projectId` returns the current project metadata, `scenes`, `compositionHtml`, `timelineJs`, and `revision`.
 
@@ -89,7 +88,7 @@ State contains the authenticated user and workspace IDs, optional project ID, in
 
 `PLAN` is non-mutating: it never loads generation skills, generates candidate files, validates, writes project state, or creates a generation run.
 
-`CREATE` runs with or without an addressed project: without one, `saveProject` creates the project in the workspace. `EDIT` and `FIX` require the addressed project. `FIX` also requires the runtime error supplied to the generations route.
+`CREATE`, `EDIT`, and `FIX` all target the addressed project. `FIX` also requires the runtime error supplied to the project message route.
 
 ## Model Providers and Prompts
 

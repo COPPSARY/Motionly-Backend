@@ -79,7 +79,7 @@ export interface ChatRequest {
     signal?: AbortSignal;
 }
 
-export type ModelProviderName = 'gemini' | 'openai' | 'anthropic';
+export type ModelProviderName = 'gemini' | 'openai' | 'anthropic' | 'sp-cambodia';
 
 export type ProviderErrorCode =
     | 'PROVIDER_RATE_LIMITED'

@@ -35,7 +35,7 @@ function dependencies() {
     projects: {
       list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(),
     },
-    motionMessages: { sendMessage: vi.fn().mockResolvedValue({ type: 'plan', message: 'Plan only.' }) },
+    motionMessages: { sendMessage: vi.fn().mockResolvedValue({ type: 'plan', response: 'Plan only.' }) },
   };
 }
 
@@ -140,7 +140,7 @@ describe('Motionly API', () => {
     const response = await request(app).post('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/messages')
       .set('Cookie', ['motionly_session=session']).set('x-csrf-token', 'expected-csrf').send({ message: 'Plan a launch.' });
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual({ type: 'plan', message: 'Plan only.' });
+    expect(response.body.data).toEqual({ type: 'plan', response: 'Plan only.' });
     expect(deps.motionMessages.sendMessage).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7', { message: 'Plan a launch.' });
   });
 

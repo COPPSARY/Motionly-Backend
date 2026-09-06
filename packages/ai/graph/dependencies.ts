@@ -109,6 +109,13 @@ export interface SkillBundle {
     skills: LoadedSkill[];
 }
 
+export interface SkillSelectionLog {
+    intent: GenerationIntent;
+    manifestVersion: string;
+    skills: Array<{ id: string; reason: string }>;
+    totalCharacters: number;
+}
+
 export interface MotionGraphDependencies {
     provider: MotionModelProvider;
     repository: GraphProjectRepository;
@@ -118,6 +125,7 @@ export interface MotionGraphDependencies {
     now?: () => number;
     maxRepairAttempts?: number;
     historyLimit?: number;
+    onSkillsSelected?: (selection: SkillSelectionLog) => void;
 }
 
 export interface ResolvedMotionGraphDependencies {
@@ -129,6 +137,7 @@ export interface ResolvedMotionGraphDependencies {
     now: () => number;
     maxRepairAttempts: number;
     historyLimit: number;
+    onSkillsSelected: (selection: SkillSelectionLog) => void;
 }
 
 export const MAX_REPAIR_ATTEMPTS = 2;
@@ -146,6 +155,7 @@ export function resolveMotionGraphDependencies(
         now: dependencies.now ?? (() => Date.now()),
         maxRepairAttempts: dependencies.maxRepairAttempts ?? MAX_REPAIR_ATTEMPTS,
         historyLimit: dependencies.historyLimit ?? RECENT_MESSAGE_LIMIT,
+        onSkillsSelected: dependencies.onSkillsSelected ?? (() => {}),
     };
 }
 

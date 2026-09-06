@@ -84,49 +84,46 @@ Stored artifacts are read through `GET /v1/artifacts/:artifactId/download`.
 ## Cloud AI generation
 
 ```text
-POST /v1/workspaces/:workspaceId/generations
+POST /v1/projects/:projectId/messages
 ```
 
-One endpoint drives the whole Motionly conversation: talking about an idea, creating a project, editing it, and repairing it after a renderer failure.
+One endpoint drives the Motionly conversation for an existing project: discussing an idea, planning changes, editing it, and repairing it after a renderer failure.
 
 ```json
 {
   "message": "Make the headline larger and slow the intro.",
-  "projectId": "9a4f2e10-7b53-4a1c-9f0d-2c8b6d5e1a33",
   "revision": 7,
   "runtimeError": { "message": "buildTimeline is not a function" }
 }
 ```
 
-Only `message` is required. Omit `projectId` for the first generation in a workspace — the request then creates the project. `revision` is the revision the client generated against and requires `projectId`. `runtimeError` reports a renderer failure and requires both `projectId` and `revision`. Unknown fields are rejected.
+Only `message` is required. `revision` is the revision the client generated against. `runtimeError` reports a renderer failure and requires `revision`. Unknown fields are rejected.
 
-The endpoint needs an authenticated session, `X-CSRF-Token`, and workspace membership; viewers cannot generate. It is rate limited to 60 requests per minute per user. There is no `Idempotency-Key`, no job to poll, cancel, retry, or apply: one call returns the finished result.
+The endpoint needs an authenticated session, `X-CSRF-Token`, and write access to the addressed project; viewers cannot generate. It is rate limited to 60 requests per minute per user. There is no `Idempotency-Key`, no job to poll, cancel, retry, or apply: one call returns the finished result.
 
 | `data.type` | Status | Meaning |
 | --- | --- | --- |
-| `chat` | 200 | Conversational reply in `message`. Nothing is written. |
-| `plan` | 200 | Proposed approach in `message`. Nothing is written. |
-| `generation` | 201 when `created` is `true`, otherwise 200 | The project was written. Carries `message`, `projectId`, `revision`, and `created`. |
+| `chat` | 200 | Conversational reply in `response`. Nothing is written. |
+| `plan` | 200 | Proposed approach in `response`. Nothing is written. |
+| `generation` | 200 | The project was written. Carries `response`, `projectId`, and `revision`. |
 
 ```json
 {
   "data": {
     "type": "generation",
-    "message": "Made the headline larger and slowed the intro.",
+    "response": "Made the headline larger and slowed the intro.",
     "projectId": "9a4f2e10-7b53-4a1c-9f0d-2c8b6d5e1a33",
-    "revision": 8,
-    "created": false
+    "revision": 8
   }
 }
 ```
 
 | Error code | Status | Cause |
 | --- | --- | --- |
-| `VALIDATION_ERROR` | 400 | Malformed body, or `revision`/`runtimeError` sent without the fields they require. |
+| `VALIDATION_ERROR` | 400 | Malformed body, or `runtimeError` sent without `revision`. |
 | `FORBIDDEN` | 403 | Viewer role. |
 | `CSRF_INVALID` | 403 | Missing or wrong `X-CSRF-Token`. |
-| `WORKSPACE_NOT_FOUND` | 404 | The caller is not a member of that workspace. |
-| `PROJECT_NOT_FOUND` | 404 | The addressed project does not exist in that workspace. |
+| `PROJECT_NOT_FOUND` | 404 | The addressed project is unavailable to the caller. |
 | `REVISION_CONFLICT` | 409 | The project moved while generating; `details.currentRevision` is the revision to reload. |
 | `GENERATION_INVALID` | 422 | The model never produced valid source; `details.errors` lists the diagnostics. |
 | `RATE_LIMITED` | 429 | Per-user request limit. |
@@ -135,7 +132,7 @@ The endpoint needs an authenticated session, `X-CSRF-Token`, and workspace membe
 | `PROVIDER_UNAVAILABLE` | 503 | The provider is temporarily down. |
 | `PROVIDER_*` | 502 | Any other provider failure. |
 
-Behind the endpoint, a LangGraph workflow classifies the request, loads the project with the last twelve messages, selects Motionly skills, generates one schema-constrained candidate, validates it without executing it, and repairs a rejected candidate at most twice. A valid candidate replaces the addressed revision in one revision-checked transaction, or creates the project when none was addressed. Every turn is recorded in `messages`, and every attempt in `generation_runs`.
+Behind the endpoint, a LangGraph workflow classifies the request, loads the project with the last twelve messages, selects Motionly skills, generates one schema-constrained candidate, validates it without executing it, and repairs a rejected candidate at most twice. A valid candidate replaces the addressed revision in one revision-checked transaction. Every turn is recorded in `messages`, and every attempt in `generation_runs`.
 
 The provider is chosen by `AI_PROVIDER` with `AI_MODEL`; only the selected provider's API key is required. The backend never renders, previews, or exports — the frontend runs the generated source. Implementation detail lives in `cloud-ai-implementation.md`.
 

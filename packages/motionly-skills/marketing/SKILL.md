@@ -36,7 +36,7 @@ Do not begin by deciding:
 - What random UI card should appear?
 
 Instead determine:
-`TARGET â†’ PROBLEM â†’ DESIRE â†’ AWARENESS â†’ ANGLE â†’ HOOK â†’ PROMISE â†’ MECHANISM â†’ PROOF â†’ OBJECTION â†’ CTA`
+`TARGET -> PROBLEM -> DESIRE -> AWARENESS -> ANGLE -> HOOK -> PROMISE -> MECHANISM -> PROOF -> OBJECTION -> CTA`
 
 Only after that should the visual treatment be designed.
 
@@ -73,7 +73,7 @@ Every important scene should have a marketing purpose.
 
 **Motionly application:**
 Do not describe Motionly only through features.
-Instead translate: `FEATURE â†’ FUNCTION â†’ BENEFIT â†’ DESIRED OUTCOME`
+Instead translate: `FEATURE -> FUNCTION -> BENEFIT -> DESIRED OUTCOME`
 
 *Example:*
 Weak: "Motionly supports programmatic animation."
@@ -134,7 +134,7 @@ Instead determine what the audience should care about immediately.
 
 **Motionly application:**
 A video script should have a natural progression. Do not make every scene feel like an isolated slide (e.g. a feature slideshow).
-Instead: `Problem â†’ tension â†’ realization â†’ solution â†’ demonstration â†’ payoff â†’ CTA`
+Instead: `Problem -> tension -> realization -> solution -> demonstration -> payoff -> CTA`
 Each scene should cause the next scene to make sense.
 
 ### F. Tested Advertising Methods
@@ -144,7 +144,7 @@ Each scene should cause the next scene to make sense.
 **Motionly application:**
 Generate multiple hooks and angles when useful.
 Do not assume the first idea is the best idea.
-For important campaigns generate: 3â€“5 hooks, 2â€“3 marketing angles, 2â€“3 CTA approaches.
+For important campaigns generate: 3-5 hooks, 2-3 marketing angles, 2-3 CTA approaches.
 
 ### G. The Robert Collier Letter Book
 **Author:** Robert Collier
@@ -204,35 +204,137 @@ The viewer should see: Starting state, User action, Motionly response, Result, F
 
 ## 6. Video Structure
 A default short-form SaaS advertisement can use:
-1. Hook (0â€“3s) - Capture attention.
-2. Problem (3â€“7s) - Make viewer recognize themselves.
-3. Reframe (7â€“11s) - Introduce a new way of thinking about the problem.
-4. Product Introduction (11â€“15s) - Introduce Motionly as the mechanism.
-5. Demonstration (15â€“24s) - Show the real product solving the problem.
-6. Payoff (24â€“27s) - Show what the customer can now achieve.
-7. CTA (27â€“30s) - Give the viewer one clear next action.
+1. Hook (0-3s) - Capture attention.
+2. Problem (3-7s) - Make viewer recognize themselves.
+3. Reframe (7-11s) - Introduce a new way of thinking about the problem.
+4. Product Introduction (11-15s) - Introduce Motionly as the mechanism.
+5. Demonstration (15-24s) - Show the real product solving the problem.
+6. Payoff (24-27s) - Show what the customer can now achieve.
+7. CTA (27-30s) - Give the viewer one clear next action.
 
 ## 7. Visual Storytelling Rules
 Motion should communicate meaning. Every major animation should have a reason.
 Use: Transformation, Spatial relationships, Camera movement, Scale, Timing, Direction, Continuity, UI interaction, Visual cause and effect.
 Avoid: Random zooms, Random fades, Excessive text, Generic floating cards, Unrelated SVG illustrations.
 
-## 8. Continuous Research System
-This skill is intentionally designed to be expanded. When researching new marketing books, extract: Book, Author, Year, Core Principle, Marketing Problem It Solves, Framework, When to Use It, When Not to Use It, Motionly Application, Example, Conflicts.
+## 9. Marketing Motion Code Structure
 
-### Newly Researched Addition: Building a StoryBrand
-**Author:** Donald Miller
-**Year:** 2017
-**Core Principle:** The customer is the hero of the story, not your brand. Your brand is the guide who provides a plan to help them overcome a problem and achieve success.
-**Marketing Problem It Solves:** Confusing, self-centered messaging that causes customers to tune out.
-**Framework:** The SB7 Framework (Character, Problem, Guide, Plan, Call to Action, Avoid Failure, End in Success).
-**When to Use It:** When constructing the core narrative flow of the video or when the current script feels too focused on Motionly's features rather than the user's outcome.
-**When Not to Use It:** When creating a purely technical product demonstration for an audience that already deeply understands the problem and just wants to see the specific mechanism.
-**Motionly Application:** Position Motionly as the "Guide" (the enabler), not the "Hero". The video should focus on what the user (the Hero) can achieve with Motionly.
-**Example:**
-*Hero:* A product marketer.
-*Problem:* Needs a polished launch video but relies on slow, manual animation.
-*Guide (Motionly):* Provides a programmatic way to build animations.
-*Plan:* "Define the animation once and make it repeatable."
-*Success:* Launch video ready on time without starting from scratch.
-**Conflicts With Existing Principles:** None, it strongly reinforces the "Marketing strategy comes BEFORE visual design" and "Translate features into desired outcomes" principles.
+Structure marketing compositions into clear narrative beats (`hook` -> `friction` -> `solution` -> `proof` -> `cta`) with registered layer IDs and readable holds.
+
+### `compositionHtml`
+
+```html
+<template>
+  <style>
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #09090b 70%);
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .scene {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 40px;
+    }
+    .hook-text, .cta-text {
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      max-width: 900px;
+    }
+    .proof-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 32px 48px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+    }
+  </style>
+
+  <div class="stage" data-edit="stage">
+    <div class="scene" data-edit="hook-scene">
+      <h1 class="hook-text" data-edit="hook-headline">Stop manual video edits.</h1>
+    </div>
+
+    <div class="scene" data-edit="proof-scene">
+      <div class="proof-card" data-edit="proof-card">
+        <span class="proof-metric" data-edit="proof-metric">10x faster rendering</span>
+      </div>
+    </div>
+
+    <div class="scene" data-edit="cta-scene">
+      <h2 class="cta-text" data-edit="cta-headline">Build motion like code.</h2>
+    </div>
+  </div>
+</template>
+```
+
+### `timelineJs`
+
+```js
+export function buildTimeline({ root, timeline, register }) {
+  const stage = register('stage', root.querySelector('[data-edit="stage"]'));
+  const hookScene = register('hook-scene', root.querySelector('[data-edit="hook-scene"]'));
+  const hookHeadline = register('hook-headline', root.querySelector('[data-edit="hook-headline"]'));
+  const proofScene = register('proof-scene', root.querySelector('[data-edit="proof-scene"]'));
+  const proofCard = register('proof-card', root.querySelector('[data-edit="proof-card"]'));
+  const ctaScene = register('cta-scene', root.querySelector('[data-edit="cta-scene"]'));
+  const ctaHeadline = register('cta-headline', root.querySelector('[data-edit="cta-headline"]'));
+
+  // Zero-time baseline
+  timeline.set([stage, hookHeadline, proofCard, ctaHeadline], { transformOrigin: '50% 50%' }, 0);
+  timeline.set([hookScene, proofScene, ctaScene], { autoAlpha: 0 }, 0);
+
+  // Beat 1: Hook (0.0s - 2.5s)
+  timeline.set(hookScene, { autoAlpha: 1 }, 0.1);
+  timeline.fromTo(
+    hookHeadline,
+    { autoAlpha: 0, scale: 0.92, y: 24 },
+    { autoAlpha: 1, scale: 1, y: 0, duration: 0.65, ease: 'power3.out' },
+    0.2,
+  );
+  timeline.to(
+    hookHeadline,
+    { autoAlpha: 0, scale: 1.05, y: -16, duration: 0.45, ease: 'power2.in' },
+    2.2,
+  );
+
+  // Beat 2: Proof (2.6s - 5.5s)
+  timeline.set(proofScene, { autoAlpha: 1 }, 2.6);
+  timeline.fromTo(
+    proofCard,
+    { autoAlpha: 0, scale: 0.85, y: 32 },
+    { autoAlpha: 1, scale: 1, y: 0, duration: 0.7, ease: 'back.out(1.4)' },
+    2.7,
+  );
+  timeline.to(
+    proofCard,
+    { autoAlpha: 0, scale: 0.95, y: -20, duration: 0.45, ease: 'power2.in' },
+    5.1,
+  );
+
+  // Beat 3: CTA (5.6s - 8.0s)
+  timeline.set(ctaScene, { autoAlpha: 1 }, 5.6);
+  timeline.fromTo(
+    ctaHeadline,
+    { autoAlpha: 0, scale: 0.94, y: 20 },
+    { autoAlpha: 1, scale: 1, y: 0, duration: 0.65, ease: 'power3.out' },
+    5.7,
+  );
+}
+```
+

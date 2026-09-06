@@ -1,73 +1,87 @@
 import type { LoadedSkill, SkillManifest } from './loader.js';
 
 export interface SkillRouteInput {
-  prompt: string;
-  intent: 'CREATE' | 'EDIT' | 'FIX';
-  assetTypes?: string[];
-  maxCharacters?: number;
+    prompt: string;
+    intent: 'CREATE' | 'EDIT' | 'FIX';
+    assetTypes?: string[];
+    maxCharacters?: number;
 }
 
 export interface RoutedSkill {
-  id: string;
-  version: string;
-  reason: string;
-  content: string;
+    id: string;
+    version: string;
+    reason: string;
+    content: string;
 }
 
-export function routeSkills(
-  bundle: { manifest: SkillManifest; skills: LoadedSkill[] },
-  input: SkillRouteInput,
-): RoutedSkill[] {
-  const haystack = `${input.intent} ${input.prompt} ${(input.assetTypes ?? []).join(' ')}`.toLowerCase();
-  const requiredIds = ['core'];
-  const required = requiredIds.map((id) => {
-    const skill = bundle.skills.find((candidate) => candidate.id === id);
-    if (!skill) throw new Error(`Required Motionly skill is missing: ${id}`);
-    return skill;
-  });
-  const selected: RoutedSkill[] = required.map((skill) => ({
-    id: skill.id,
-    version: bundle.manifest.version,
-    reason: 'Required for every Motionly generation.',
-    content: skill.content,
-  }));
-  const maxCharacters = input.maxCharacters ?? 12_000;
-  const requiredCharacters = required.reduce((total, skill) => total + skill.content.length, 0);
-  if (requiredCharacters > maxCharacters) throw new Error('Motionly required skills exceed the routing character budget.');
-  const preferredIds = input.intent === 'CREATE' ? ['write-motionly', 'quality-reference', 'code-authoring', 'typography'] : input.intent === 'FIX' ? ['code-authoring', 'quality-reference'] : [];
-  let characters = requiredCharacters;
-  const preferredSkills = preferredIds.map((id) => bundle.skills.find((skill) => skill.id === id)).filter(
-    (skill): skill is LoadedSkill => skill !== undefined,
-  );
-  const preferredCharacters = preferredSkills.reduce((total, skill) => total + skill.content.length, 0);
-  if (characters + preferredCharacters <= maxCharacters) {
-    for (const skill of preferredSkills) {
-      selected.push({
-        id: skill.id,
-        version: bundle.manifest.version,
-        reason: 'Baseline guidance for authored Motionly compositions.',
-        content: skill.content,
-      });
-    }
-    characters += preferredCharacters;
-  }
-  const candidates = bundle.skills.filter((skill) => !requiredIds.includes(skill.id)).map((skill) => {
-    const matches = skill.tags.filter((tag) => haystack.includes(tag.toLowerCase()));
-    return { skill, matches };
-  }).filter((candidate) => candidate.matches.length > 0)
-    .sort((left, right) => right.matches.length - left.matches.length || left.skill.id.localeCompare(right.skill.id));
+const BASELINE_SKILLS: Record<SkillRouteInput['intent'], string[]> = {
+    CREATE: [
+        'core',
+        'write-motionly',
+        'quality-reference',
+        'code-authoring',
+        'typography',
+        'editor-controls',
+    ],
+    EDIT: ['core', 'code-authoring', 'editor-controls'],
+    FIX: ['core', 'code-authoring', 'quality-reference', 'editor-controls'],
+};
 
-  for (const { skill, matches } of candidates) {
-    if (selected.length >= 5) break;
-    if (selected.some((selectedSkill) => selectedSkill.id === skill.id)) continue;
-    if (characters + skill.content.length > maxCharacters) continue;
-    selected.push({
-      id: skill.id,
-      version: bundle.manifest.version,
-      reason: `Matched: ${matches.join(', ')}`,
-      content: skill.content,
-    });
-    characters += skill.content.length;
-  }
-  return selected;
+export function routeSkills(
+    bundle: { manifest: SkillManifest; skills: LoadedSkill[] },
+    input: SkillRouteInput,
+): RoutedSkill[] {
+    const haystack = `${input.intent} ${input.prompt} ${(input.assetTypes ?? []).join(' ')}`.toLowerCase();
+    const maxCharacters = input.maxCharacters ?? Number.POSITIVE_INFINITY;
+    const selected: RoutedSkill[] = [];
+    const selectedIds = new Set<string>();
+    let characters = 0;
+
+    for (const id of BASELINE_SKILLS[input.intent]) {
+        const skill = bundle.skills.find((candidate) => candidate.id === id);
+        if (!skill) throw new Error(`Required Motionly skill is missing: ${id}`);
+        if (characters + skill.content.length > maxCharacters) {
+            if (id === 'core') throw new Error('Motionly required skills exceed the routing character budget.');
+            continue;
+        }
+        selected.push(toRoutedSkill(skill, bundle.manifest.version, id === 'core'
+            ? 'Required for every Motionly generation.'
+            : 'Baseline guidance for this generation intent.'));
+        selectedIds.add(id);
+        characters += skill.content.length;
+    }
+
+    const candidates = bundle.skills
+        .filter((skill) => !selectedIds.has(skill.id))
+        .map((skill) => ({
+            skill,
+            matches: skill.tags.filter((tag) => haystack.includes(tag.toLowerCase())),
+        }))
+        .filter((candidate) => candidate.matches.length > 0)
+        .sort((left, right) => (
+            right.matches.length - left.matches.length
+            || left.skill.id.localeCompare(right.skill.id)
+        ));
+
+    for (const { skill, matches } of candidates) {
+        if (characters + skill.content.length > maxCharacters) continue;
+        selected.push(toRoutedSkill(
+            skill,
+            bundle.manifest.version,
+            `Matched: ${matches.join(', ')}`,
+        ));
+        selectedIds.add(skill.id);
+        characters += skill.content.length;
+    }
+
+    return selected;
+}
+
+function toRoutedSkill(skill: LoadedSkill, version: string, reason: string): RoutedSkill {
+    return {
+        id: skill.id,
+        version,
+        reason,
+        content: skill.content,
+    };
 }

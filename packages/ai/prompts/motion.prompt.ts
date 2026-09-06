@@ -26,7 +26,8 @@ const OUTPUT_RULES = [
     '',
     'Keep duration, width, height, fps, and the scene list consistent with the composition you build.',
     'Each scene needs id, label, start, duration, and accent, and scene timings must stay inside duration.',
-    'reply is one or two plain sentences telling the user what you changed.',
+    'reply is one or two plain sentences focused on the creative outcome and what changed for the user.',
+    'Do not mention Motionly, the platform, the frontend, GSAP, code, skills, rendering, previews, exports, or internal process unless the user explicitly asks.',
 ].join('\n');
 
 export function buildMotionSystemPrompt(skills: RoutedSkill[]): string {
