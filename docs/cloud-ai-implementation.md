@@ -740,13 +740,12 @@ try {
 The frontend can send:
 
 ```http
-POST /v1/workspaces/:workspaceId/generations
+POST /v1/projects/:projectId/messages
 ```
 
 ```json
 {
   "message": "The preview crashed after my last edit.",
-  "projectId": "proj_123",
   "revision": 7,
   "runtimeError": {
     "message": "Cannot read properties of null"
@@ -870,7 +869,7 @@ Do not store secrets or sensitive model credentials.
 ## Send message
 
 ```http
-POST /v1/workspaces/:workspaceId/generations
+POST /v1/projects/:projectId/messages
 ```
 
 Body:
@@ -878,12 +877,11 @@ Body:
 ```json
 {
   "message": "Make the title larger and animate my logo",
-  "projectId": "proj_123",
   "revision": 8
 }
 ```
 
-Only `message` is required. Omit `projectId` to create the first project in the workspace; send it with `revision` to refine that project.
+Only `message` is required. The route addresses an existing project; send `revision` when generating against a known revision.
 
 The frontend should not send all project files every time.
 
@@ -895,7 +893,7 @@ Response for chat:
 {
   "data": {
     "type": "chat",
-    "message": "Hi! What would you like to create?"
+    "response": "Hi! What would you like to create?"
   }
 }
 ```
@@ -906,15 +904,14 @@ Response for generation:
 {
   "data": {
     "type": "generation",
-    "message": "Updated the title and added a logo reveal.",
+    "response": "Updated the title and added a logo reveal.",
     "projectId": "proj_123",
-    "revision": 8,
-    "created": false
+    "revision": 8
   }
 }
 ```
 
-A created project answers `201`; every other outcome answers `200`.
+Every successful outcome answers `200`.
 
 ---
 
@@ -948,7 +945,7 @@ Response:
 The same endpoint handles repair; a reported runtime error selects `FIX`.
 
 ```http
-POST /v1/workspaces/:workspaceId/generations
+POST /v1/projects/:projectId/messages
 ```
 
 Body:
@@ -956,7 +953,6 @@ Body:
 ```json
 {
   "message": "The preview crashed after my last edit.",
-  "projectId": "proj_123",
   "revision": 8,
   "runtimeError": {
     "message": "Cannot read properties of null"
@@ -964,7 +960,7 @@ Body:
 }
 ```
 
-`runtimeError` requires both `projectId` and `revision`.
+`runtimeError` requires `revision`; the project ID comes from the route.
 
 ---
 

@@ -21,9 +21,9 @@ export interface MessageRequestInput {
 }
 
 export type MessageResult =
-    | { type: 'chat'; message: string }
-    | { type: 'plan'; message: string }
-    | { type: 'generation'; message: string; projectId: string; revision: number };
+    | { type: 'chat'; response: string }
+    | { type: 'plan'; response: string }
+    | { type: 'generation'; response: string; projectId: string; revision: number };
 
 const PROVIDER_STATUS: Record<ProviderErrorCode, number> = {
     PROVIDER_RATE_LIMITED: 429,
@@ -73,10 +73,12 @@ export class GenerationService {
         const response = state.response;
         if (!response) throw new Error('The Motionly graph finished without a response.');
         if (response.type === 'error') throw toAppError(response);
-        if (response.type !== 'generation') return response;
+        if (response.type !== 'generation') {
+            return { type: response.type, response: response.message };
+        }
         return {
             type: 'generation',
-            message: response.message,
+            response: response.message,
             projectId: response.projectId,
             revision: response.revision,
         };

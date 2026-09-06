@@ -21,6 +21,15 @@ describe('createModelProvider', () => {
         expect(provider.name).toBe('anthropic');
     });
 
+    it('builds the SP Cambodia provider from its key', () => {
+        const provider = createModelProvider({
+            aiProvider: 'sp-cambodia',
+            spCambodiaApiKey: 'sp-cambodia-key',
+        });
+
+        expect(provider.name).toBe('sp-cambodia');
+    });
+
     it('names the missing variable when the selected provider has no key', () => {
         expect(() => createModelProvider({ aiProvider: 'openai', geminiApiKey: 'gemini-key' }))
             .toThrowError(/OPENAI_API_KEY/);
@@ -29,5 +38,10 @@ describe('createModelProvider', () => {
     it('rejects a key that is only whitespace', () => {
         expect(() => createModelProvider({ aiProvider: 'gemini', geminiApiKey: '   ' }))
             .toThrowError(/GEMINI_API_KEY/);
+    });
+
+    it('names the SP Cambodia variable when its selected key is missing', () => {
+        expect(() => createModelProvider({ aiProvider: 'sp-cambodia' }))
+            .toThrowError(/SP_CAMBO_API_KEY/);
     });
 });

@@ -3,13 +3,15 @@
   "runtimeRange": ">=2.0.0 <3.0.0",
   "source": "Motionly frontend skills, preset helpers, and product-promo quality reference; reviewed and split for backend routing",
   "sourceVersion": "2.0.0",
+  "hashAlgorithm": "sha256",
   "skills": [
     {
       "id": "core",
       "file": "core/SKILL.md",
       "tags": [
         "core"
-      ]
+      ],
+      "sha256": "5387845a2515971f503dc14581e493b2e75412b07f05fb183677cabbaa2a9d21"
     },
     {
       "id": "write-motionly",
@@ -25,7 +27,8 @@
         "typography",
         "layout",
         "style"
-      ]
+      ],
+      "sha256": "4a6f66a99f01b2e757a736ed23af393ccdbd7c4142ff085350be364c69f2f2e2"
     },
     {
       "id": "helpers",
@@ -35,7 +38,8 @@
         "gsap",
         "helper",
         "preset"
-      ]
+      ],
+      "sha256": "4a0d1a0ffce650e97f85e409385ce3e68335f5304a8016b0e54123745bfe0395"
     },
     {
       "id": "quality-reference",
@@ -46,7 +50,8 @@
         "composition",
         "create",
         "edit"
-      ]
+      ],
+      "sha256": "b43315ec7edb99fcd3e2e6e37969b2cfe501c4eecf6226bd5e261c8751dbef90"
     },
     {
       "id": "code-authoring",
@@ -55,7 +60,8 @@
         "code",
         "html",
         "gsap"
-      ]
+      ],
+      "sha256": "dbd17b0fdc21c5d67712881c7b7b4e5436a70a75de64b90ba448c00915b946ab"
     },
     {
       "id": "timeline",
@@ -65,7 +71,22 @@
         "timing",
         "retime",
         "duration"
-      ]
+      ],
+      "sha256": "aacd4e3284556fa66cfdd39d8e1155472ee153caa8391bcbcbecf4dc4913fb56"
+    },
+    {
+      "id": "editor-controls",
+      "file": "editor-controls/SKILL.md",
+      "tags": [
+        "editor",
+        "layer",
+        "position",
+        "scale",
+        "rotation",
+        "opacity",
+        "easing"
+      ],
+      "sha256": "ebf838f3f21c29c7b14dfa7f52f9ade06ac92e3da20ad9f0acedfff12e88445e"
     },
     {
       "id": "typography",
@@ -76,7 +97,8 @@
         "title",
         "typography",
         "font"
-      ]
+      ],
+      "sha256": "1e8decda03889de0b8a1e8945d81882cb3590012186307172abffbbba653ba63"
     },
     {
       "id": "transitions",
@@ -86,7 +108,8 @@
         "morph",
         "match-cut",
         "particle"
-      ]
+      ],
+      "sha256": "94be252e6a8825bfb75847989df4382cbf2afb2d4b4ce8e9e36f00259452531d"
     },
     {
       "id": "camera",
@@ -98,7 +121,8 @@
         "push",
         "pull",
         "reframe"
-      ]
+      ],
+      "sha256": "b30776475b0fbe7d6b26e43c8645028d684ad36f3dce1b19b5c0a6737500b8dc"
     },
     {
       "id": "svg",
@@ -109,7 +133,8 @@
         "path",
         "mask",
         "stroke"
-      ]
+      ],
+      "sha256": "f627f69f9bcde647ed00c52d9c60e322aefffb07f4243b48b5ae29c59e7f279a"
     },
     {
       "id": "assets",
@@ -121,7 +146,8 @@
         "audio",
         "screenshot",
         "media"
-      ]
+      ],
+      "sha256": "fc19557e8ff16560285a69a98a48733cffd6571cd60c3b3b4ab49d3f33216389"
     },
     {
       "id": "rendering",
@@ -132,7 +158,8 @@
         "preview",
         "chromium",
         "frame"
-      ]
+      ],
+      "sha256": "bd44a1164dce140cf3cb928e2a9be75ace9778ff07f7eecc8bc7e65c3a41ee41"
     },
     {
       "id": "small-edits",
@@ -147,7 +174,8 @@
         "simple",
         "animation",
         "add"
-      ]
+      ],
+      "sha256": "ec7c531463fa672ef4e4390e64fcf6c6bb027f7eacccc53c2d5fc1e0959fea2d"
     },
     {
       "id": "marketing",
@@ -157,29 +185,44 @@
         "copywriting",
         "strategy",
         "sales",
-        "video"
-      ]
+        "video",
+        "ad",
+        "advertisement",
+        "promo",
+        "promotion",
+        "hook",
+        "cta",
+        "conversion",
+        "pitch",
+        "launch",
+        "campaign",
+        "commercial"
+      ],
+      "sha256": "bc56788cba325e4a5a2cec83ba0cbf6e695230d9316d9865a73127b309e35f99"
     },
     {
       "id": "story-timing",
       "file": "story-timing/SKILL.md",
       "tags": [
         "story"
-      ]
+      ],
+      "sha256": "fecb699c62b3c281dd2c0f73ba823ae594f16c9dbda409866d5abdcac9d09a12"
     },
     {
       "id": "transitions-camera",
       "file": "transitions-camera/SKILL.md",
       "tags": [
         "transitions"
-      ]
+      ],
+      "sha256": "4224134468ff59ffd22a85ad000b6e480ef4e31a77e5a40ca6697989bb1fdf5d"
     },
     {
       "id": "typography-backgrounds",
       "file": "typography-backgrounds/SKILL.md",
       "tags": [
         "typography"
-      ]
+      ],
+      "sha256": "e494b2aaca6de6fc2429eb066b66457509c11a59f53909168eedb13bc68dd7cc"
     }
   ]
 }

@@ -56,6 +56,17 @@ describe('parseEnvironment', () => {
     expect(() => parseEnvironment({ ...valid, AI_PROVIDER: 'openai-compatible' })).toThrow();
   });
 
+  it('parses the SP Cambodia provider and API key', () => {
+    const environment = parseEnvironment({
+      ...valid,
+      AI_PROVIDER: 'sp-cambodia',
+      SP_CAMBO_API_KEY: 'sp-cambodia-key',
+    });
+
+    expect(environment.aiProvider).toBe('sp-cambodia');
+    expect(environment.spCambodiaApiKey).toBe('sp-cambodia-key');
+  });
+
   it('uses AI_MODEL as the only configured model', () => {
     const environment = parseEnvironment({
       ...valid,

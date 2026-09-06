@@ -40,16 +40,9 @@ TTS `[break=...]` begins after a phrase is spoken; it is not the scene duration.
 
 ## Retiming without breaking choreography
 
-```js
-const authored = gsap.timeline();
-callerTimeline.add(authored, 0);
-// Add authored motion to `authored`.
-authored.timeScale(sourceDuration / targetDuration);
-```
+Build a single time map from source positions to target positions. Apply its scale factor to every explicit timeline position and duration, then scale scene starts and durations by the same factor. Derive narration cues and captions from that map so metadata and motion cannot drift apart.
 
-Scale scene metadata by `targetDuration / sourceDuration`. Do not multiply every tween manually for a global retime. Derive narration cues, captions, and metadata from the same map.
-
-Frame rate is sampling density. A 60 fps export contains more frames across the same seconds; it must not run GSAP faster.
+Keep every operation on the provided timeline. Frame rate is sampling density: a 60 fps export contains more frames across the same seconds and must not run animation faster.
 
 ## Reusable story patterns
 

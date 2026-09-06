@@ -2,6 +2,7 @@ import { AnthropicMotionModelProvider } from './anthropic.provider.js';
 import { GeminiMotionModelProvider } from './gemini.provider.js';
 import type { ModelProviderName, MotionModelProvider } from './model.provider.js';
 import { OpenAIMotionModelProvider } from './openai.provider.js';
+import { SpCambodiaMotionModelProvider } from './sp-cambodia.provider.js';
 
 /** The provider-selection slice of the parsed environment. */
 export interface ModelProviderConfig {
@@ -9,12 +10,14 @@ export interface ModelProviderConfig {
     geminiApiKey?: string | undefined;
     openAiApiKey?: string | undefined;
     anthropicApiKey?: string | undefined;
+    spCambodiaApiKey?: string | undefined;
 }
 
 const KEY_VARIABLES: Record<ModelProviderName, string> = {
     gemini: 'GEMINI_API_KEY',
     openai: 'OPENAI_API_KEY',
     anthropic: 'ANTHROPIC_API_KEY',
+    'sp-cambodia': 'SP_CAMBO_API_KEY',
 };
 
 /**
@@ -29,6 +32,10 @@ export function createModelProvider(config: ModelProviderConfig): MotionModelPro
             return new OpenAIMotionModelProvider({ apiKey: requireKey(config.aiProvider, config.openAiApiKey) });
         case 'anthropic':
             return new AnthropicMotionModelProvider({ apiKey: requireKey(config.aiProvider, config.anthropicApiKey) });
+        case 'sp-cambodia':
+            return new SpCambodiaMotionModelProvider({
+                apiKey: requireKey(config.aiProvider, config.spCambodiaApiKey),
+            });
     }
 }
 

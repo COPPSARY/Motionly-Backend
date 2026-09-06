@@ -52,7 +52,7 @@ describe('GenerationService', () => {
         const { service } = createService({ response: { type: 'chat', message: 'What should it say?' } });
 
         await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'Can you help me?' }))
-            .resolves.toEqual({ type: 'chat', message: 'What should it say?' });
+            .resolves.toEqual({ type: 'chat', response: 'What should it say?' });
     });
 
     it('sends the addressed project and its workspace to the graph', async () => {
@@ -64,7 +64,7 @@ describe('GenerationService', () => {
             message: 'Fix the crash.',
             revision: 7,
             runtimeError: { message: 'buildTimeline is not a function' },
-        })).resolves.toEqual({ type: 'generation', message: 'Fixed it.', projectId: PROJECT_ID, revision: 8 });
+        })).resolves.toEqual({ type: 'generation', response: 'Fixed it.', projectId: PROJECT_ID, revision: 8 });
 
         expect(graph.invoke).toHaveBeenCalledWith({
             userId: USER_ID,

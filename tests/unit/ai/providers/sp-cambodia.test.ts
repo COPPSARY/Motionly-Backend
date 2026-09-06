@@ -1,0 +1,72 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { SpCambodiaMotionModelProvider } from '../../../../packages/ai/providers/sp-cambodia.provider.js';
+import { intentSchema } from '../../../../packages/ai/schemas/intent.schema.js';
+
+const generation = {
+    title: 'Launch', duration: 8, width: 1920, height: 1080, fps: 30,
+    scenes: [{ id: 'intro', label: 'Intro', start: 0, duration: 8, accent: '#7c3aed' }],
+    compositionHtml: '<main>Launch</main>', timelineJs: 'timeline.play();', reply: 'Created it.',
+};
+
+describe('SpCambodiaMotionModelProvider', () => {
+    it('uses the OpenAI Responses API structured-output format', async () => {
+        const create = vi.fn().mockResolvedValue({ output_text: JSON.stringify(generation) });
+        const provider = new SpCambodiaMotionModelProvider({
+            apiKey: 'test-key',
+            client: { responses: { create } },
+        });
+
+        await expect(provider.generate({
+            model: 'claude-opus-5',
+            systemInstructions: 'Motionly rules',
+            prompt: 'Create it',
+            limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
+        })).resolves.toEqual(generation);
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({
+            model: 'claude-opus-5',
+            instructions: 'Motionly rules',
+            input: 'Create it',
+            max_output_tokens: 2_000,
+            text: {
+                format: expect.objectContaining({
+                    type: 'json_schema',
+                    name: 'motionly_generation',
+                    strict: true,
+                }),
+            },
+        }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    });
+
+    it('returns response text for chat', async () => {
+        const create = vi.fn().mockResolvedValue({ output_text: 'Start with a title reveal.' });
+        const provider = new SpCambodiaMotionModelProvider({
+            apiKey: 'test-key',
+            client: { responses: { create } },
+        });
+
+        await expect(provider.chat({
+            model: 'claude-opus-5',
+            systemInstructions: 'Plan motion',
+            messages: [{ role: 'user', content: 'How should it start?' }],
+            limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
+        })).resolves.toBe('Start with a title reveal.');
+    });
+
+    it('uses JSON Schema for structured output', async () => {
+        const create = vi.fn().mockResolvedValue({ output_text: '{"intent":"CHAT"}' });
+        const provider = new SpCambodiaMotionModelProvider({
+            apiKey: 'test-key',
+            client: { responses: { create } },
+        });
+
+        await expect(provider.structured({
+            model: 'claude-opus-5',
+            systemInstructions: 'Classify.',
+            prompt: 'Hello',
+            schemaName: 'motionly_intent',
+            schema: intentSchema,
+            limits: { maxOutputTokens: 128, timeoutMs: 5_000 },
+        })).resolves.toEqual({ intent: 'CHAT' });
+    });
+});

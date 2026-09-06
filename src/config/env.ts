@@ -19,11 +19,12 @@ const schema = z.object({
   ),
   SESSION_COOKIE_SECURE: booleanString,
   LOG_LEVEL: logLevel,
-  AI_PROVIDER: z.enum(['gemini', 'openai', 'anthropic']).default('gemini'),
+  AI_PROVIDER: z.enum(['gemini', 'openai', 'anthropic', 'sp-cambodia']).default('gemini'),
   AI_MODEL: z.string().min(1),
   GEMINI_API_KEY: z.string().min(1).optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  SP_CAMBO_API_KEY: z.string().min(1).optional(),
   GENERATION_MAX_ACTIVE_PER_USER: z.coerce.number().int().min(1).max(100).default(3),
   OBJECT_STORAGE_LOCAL_ROOT: z.string().min(1).default('./data/objects'),
 });
@@ -54,6 +55,7 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     geminiApiKey: parsed.GEMINI_API_KEY,
     openAiApiKey: parsed.OPENAI_API_KEY,
     anthropicApiKey: parsed.ANTHROPIC_API_KEY,
+    spCambodiaApiKey: parsed.SP_CAMBO_API_KEY,
     generationMaxActivePerUser: parsed.GENERATION_MAX_ACTIVE_PER_USER,
     objectStorageLocalRoot: parsed.OBJECT_STORAGE_LOCAL_ROOT,
   };

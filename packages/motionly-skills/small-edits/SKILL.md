@@ -5,12 +5,13 @@ description: Make focused, minimal source changes for narrow Motionly edit reque
 
 # Small Motionly edits
 
-Use this skill for narrow requests such as changing text, color, font size, spacing, visibility, adding one short text layer, or changing a single timing value in an existing project.
+Use this skill for narrow requests such as changing text, color, font size, spacing, visibility, one short text layer, or one timing value in an existing project.
 
-- Treat the existing source as the design to preserve. Do not redesign scenes or invent copy.
-- Inspect `composition.html` and `styles.css` first; inspect `timeline.js` only when the requested property is animated.
-- Return only the changed file contents through `return_changed_files`. Do not replace an entire file for a one-property change unless the changed file content is required by the API response.
-- Preserve every existing `data-edit` ID, `register(...)` call, scene, track, timeline relationship, and unaffected style.
-- For a color request, update the existing selector or inline style for the requested layer. Do not add a new layer unless the prompt explicitly asks for one.
-- For a request to add one short text layer, add one semantic element with a stable `data-edit` ID in the existing template, register that same ID in `timeline.js`, and animate it with the caller-owned timeline. Keep the existing scenes and copy unchanged.
-- Confirm the requested change is present and unrelated source is unchanged before returning the changed files.
+- Treat the current `compositionHtml` and `timelineJs` as the design to preserve. Do not redesign scenes or invent copy.
+- Return the complete schema-constrained project, but change only the source and metadata required by the request.
+- Inspect `compositionHtml` first; change `timelineJs` only when animation, registration, or timing requires it.
+- Preserve existing `data-edit` IDs, matching `register(...)` calls, scenes, timeline relationships, and unaffected styles.
+- For color or typography, update the existing scoped selector or semantic element. Do not add a layer unless requested.
+- To add one text layer, add one semantic element with a unique stable `data-edit`, query and register that same ID, then animate it on the provided timeline. Preserve other scenes and copy.
+- For animated properties, update both zero-time and destination values when needed so seeking stays deterministic.
+- Confirm the requested change is present and unrelated source remains intact before returning the complete project.

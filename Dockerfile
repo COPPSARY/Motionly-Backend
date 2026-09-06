@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json tsconfig.build.json ./
+COPY scripts ./scripts
 COPY src ./src
 COPY packages ./packages
 RUN npm run build:api

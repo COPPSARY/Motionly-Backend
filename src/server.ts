@@ -130,6 +130,11 @@ export async function startServer() {
       provider: createModelProvider(environment),
       repository: graphRepository,
       model: environment.aiModel,
+      ...(environment.nodeEnv === 'development' ? {
+        onSkillsSelected: (selection) => {
+          logger.info(selection, 'Motionly skills selected');
+        },
+      } : {}),
     }),
     graphRepository,
   );
