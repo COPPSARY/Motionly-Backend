@@ -11,9 +11,8 @@ import type { MotionGraphState, MotionGraphUpdate } from '../state.js';
  * candidate instead of redesigning the project. Attempts are counted and bounded.
  */
 export function createRepairNode(dependencies: ResolvedMotionGraphDependencies) {
-    return async (state: MotionGraphState): Promise<MotionGraphUpdate> => ({
-        repairAttempts: state.repairAttempts + 1,
-        generation: await dependencies.provider.generate({
+    return async (state: MotionGraphState): Promise<MotionGraphUpdate> => {
+        const result = await dependencies.provider.generate({
             model: dependencies.model,
             systemInstructions: buildRepairSystemPrompt(state.selectedSkills),
             prompt: buildRepairUserPrompt({
@@ -24,6 +23,7 @@ export function createRepairNode(dependencies: ResolvedMotionGraphDependencies) 
                 errors: state.validationErrors,
             }),
             limits: REPAIR_LIMITS,
-        }),
-    });
+        });
+        return { repairAttempts: state.repairAttempts + 1, generation: result.generation, tokenUsage: result.usage };
+    };
 }

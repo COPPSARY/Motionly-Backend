@@ -89,11 +89,26 @@ export class GenerationService {
             return await this.graph.invoke(input);
         } catch (error) {
             if (error instanceof ModelProviderError) {
-                throw new AppError(PROVIDER_STATUS[error.code], error.code, PROVIDER_MESSAGE[error.code]);
+                throw new AppError(
+                    PROVIDER_STATUS[error.code],
+                    error.code,
+                    PROVIDER_MESSAGE[error.code],
+                    undefined,
+                    {
+                        provider: providerName(error.message),
+                        ...(error.diagnostics?.httpStatus !== undefined ? { httpStatus: error.diagnostics.httpStatus } : {}),
+                        ...(error.diagnostics?.providerCode ? { providerCode: error.diagnostics.providerCode } : {}),
+                        ...(error.diagnostics?.providerType ? { providerType: error.diagnostics.providerType } : {}),
+                    },
+                );
             }
             throw error;
         }
     }
+}
+
+function providerName(message: string): string {
+    return message.split(' ', 1)[0] ?? 'unknown';
 }
 
 function requireWriteAccess(role: GraphWorkspaceRole): void {

@@ -1,24 +1,34 @@
+import { enhanceMotionlyPrompt, needsEnhancement } from '../../../motionly-skills/prompt-enhancer.js';
 import { buildMotionSystemPrompt, buildMotionUserPrompt, GENERATION_LIMITS } from '../../prompts/motion.prompt.js';
 import { requireGenerationIntent, type ResolvedMotionGraphDependencies } from '../dependencies.js';
 import type { MotionGraphState, MotionGraphUpdate } from '../state.js';
 
 /**
  * Produces one schema-constrained candidate from the request, the current project
- * source, bounded history, and the selected skills. Nothing else is sent.
+ * source, bounded history, and the selected skills. A request too terse to imply
+ * a structure is wrapped in the Motionly production brief first; `state.message`
+ * itself is left alone so history and skill routing keep the user's own wording.
  */
 export function createGenerateNode(dependencies: ResolvedMotionGraphDependencies) {
-    return async (state: MotionGraphState): Promise<MotionGraphUpdate> => ({
-        generation: await dependencies.provider.generate({
-            model: dependencies.model,
-            systemInstructions: buildMotionSystemPrompt(state.selectedSkills),
-            prompt: buildMotionUserPrompt({
-                intent: requireGenerationIntent(state.intent),
-                message: state.message,
-                project: state.project,
-                recentMessages: state.recentMessages,
-                runtimeError: state.runtimeError,
-            }),
-            limits: GENERATION_LIMITS,
-        }),
-    });
+    return async (state: MotionGraphState): Promise<MotionGraphUpdate> => {
+        const intent = requireGenerationIntent(state.intent);
+        const message = needsEnhancement(state.message)
+            ? enhanceMotionlyPrompt(state.message, intent === 'CREATE' ? 'CREATE' : 'EDIT')
+            : state.message;
+
+        const result = await dependencies.provider.generate({
+                model: dependencies.model,
+                systemInstructions: buildMotionSystemPrompt(state.selectedSkills),
+                prompt: buildMotionUserPrompt({
+                    intent,
+                    message,
+                    project: state.project,
+                    recentMessages: state.recentMessages,
+                    runtimeError: state.runtimeError,
+                }),
+                limits: GENERATION_LIMITS,
+        });
+
+        return { generation: result.generation, tokenUsage: result.usage };
+    };
 }

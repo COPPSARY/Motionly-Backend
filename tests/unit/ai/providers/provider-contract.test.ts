@@ -23,7 +23,7 @@ describe('MotionModelProvider contract', () => {
             systemInstructions: 'Follow Motionly rules.',
             prompt: 'Create a launch animation.',
             limits: { maxOutputTokens: 2_000, timeoutMs: 10_000 },
-        })).resolves.toEqual(generation);
+        })).resolves.toEqual({ generation, usage: { inputTokens: null, outputTokens: null } });
     });
 
     it('rejects invalid generation output before it reaches the application', async () => {

@@ -44,6 +44,8 @@ export interface OverwriteGraphProjectInput {
     selectedSkills: string[];
     repairAttempts: number;
     latencyMs: number;
+    inputTokens: number | null;
+    outputTokens: number | null;
 }
 
 export interface CreateGraphProjectInput {
@@ -53,6 +55,8 @@ export interface CreateGraphProjectInput {
     selectedSkills: string[];
     repairAttempts: number;
     latencyMs: number;
+    inputTokens: number | null;
+    outputTokens: number | null;
 }
 
 export interface GenerationRunInput {
@@ -65,6 +69,8 @@ export interface GenerationRunInput {
     repairAttempts: number;
     status: 'COMPLETED' | 'FAILED';
     latencyMs: number;
+    inputTokens: number | null;
+    outputTokens: number | null;
 }
 
 /**

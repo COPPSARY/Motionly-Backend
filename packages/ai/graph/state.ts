@@ -1,7 +1,7 @@
 import { Annotation } from '@langchain/langgraph';
 
 import type { RoutedSkill } from '../../motionly-skills/router.js';
-import type { ChatMessage, MotionlyGeneration } from '../providers/model.provider.js';
+import type { ChatMessage, ModelTokenUsage, MotionlyGeneration } from '../providers/model.provider.js';
 import type { Intent } from '../schemas/intent.schema.js';
 import type { ValidationError } from '../validation/generation-validator.js';
 import type { MotionGraphResponse, MotionlyProject } from './dependencies.js';
@@ -28,11 +28,23 @@ export const MotionGraphAnnotation = Annotation.Root({
     recentMessages: Annotation<ChatMessage[]>({ reducer: replace, default: () => [] }),
     selectedSkills: Annotation<RoutedSkill[]>({ reducer: replace, default: () => [] }),
     generation: Annotation<MotionlyGeneration | undefined>,
+    tokenUsage: Annotation<ModelTokenUsage>({
+        reducer: (current, next) => ({
+            inputTokens: addTokenUsage(current.inputTokens, next.inputTokens),
+            outputTokens: addTokenUsage(current.outputTokens, next.outputTokens),
+        }),
+        default: () => ({ inputTokens: null, outputTokens: null }),
+    }),
     validationErrors: Annotation<ValidationError[]>({ reducer: replace, default: () => [] }),
     repairAttempts: Annotation<number>({ reducer: replace, default: () => 0 }),
     savedRevision: Annotation<number | undefined>,
     response: Annotation<MotionGraphResponse | undefined>,
 });
+
+function addTokenUsage(current: number | null, next: number | null): number | null {
+    if (current === null && next === null) return null;
+    return (current ?? 0) + (next ?? 0);
+}
 
 export type MotionGraphState = typeof MotionGraphAnnotation.State;
 export type MotionGraphUpdate = typeof MotionGraphAnnotation.Update;

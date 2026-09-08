@@ -11,13 +11,13 @@ const generation = {
 
 describe('GeminiMotionModelProvider', () => {
     it('requests structured JSON and validates the generated composition', async () => {
-        const generateContent = vi.fn().mockResolvedValue({ text: JSON.stringify(generation) });
+        const generateContent = vi.fn().mockResolvedValue({ text: JSON.stringify(generation), usageMetadata: { promptTokenCount: 1_200, candidatesTokenCount: 340 } });
         const provider = new GeminiMotionModelProvider({ apiKey: 'test-key', client: { models: { generateContent } } });
 
         await expect(provider.generate({
             model: 'gemini-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
-        })).resolves.toEqual(generation);
+        })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({
             model: 'gemini-test', contents: 'Create it',
             config: expect.objectContaining({

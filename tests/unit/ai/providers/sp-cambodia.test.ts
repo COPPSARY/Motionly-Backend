@@ -11,7 +11,7 @@ const generation = {
 
 describe('SpCambodiaMotionModelProvider', () => {
     it('uses the OpenAI Responses API structured-output format', async () => {
-        const create = vi.fn().mockResolvedValue({ output_text: JSON.stringify(generation) });
+        const create = vi.fn().mockResolvedValue({ output_text: JSON.stringify(generation), usage: { input_tokens: 1_200, output_tokens: 340 } });
         const provider = new SpCambodiaMotionModelProvider({
             apiKey: 'test-key',
             client: { responses: { create } },
@@ -22,12 +22,11 @@ describe('SpCambodiaMotionModelProvider', () => {
             systemInstructions: 'Motionly rules',
             prompt: 'Create it',
             limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
-        })).resolves.toEqual(generation);
+        })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-opus-5',
             instructions: 'Motionly rules',
             input: 'Create it',
-            max_output_tokens: 2_000,
             text: {
                 format: expect.objectContaining({
                     type: 'json_schema',

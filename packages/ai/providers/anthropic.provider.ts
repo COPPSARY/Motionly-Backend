@@ -12,8 +12,9 @@ import {
     parseMotionlyGeneration,
     parseStructured,
     requireModelText,
+    tokenUsage,
     type ChatRequest,
-    type MotionlyGeneration,
+    type ModelGenerationResult,
     type MotionModelProvider,
     type MotionModelRequest,
     type StructuredModelRequest,
@@ -39,8 +40,8 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
         this.client = options.client ?? new Anthropic({ apiKey: options.apiKey });
     }
 
-    async generate(request: MotionModelRequest): Promise<MotionlyGeneration> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
+    async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
+        const signal = createAnthropicRequestSignal(request);
         try {
             const response = await this.client.messages.create({
                 model: request.model,
@@ -48,29 +49,37 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
                 max_tokens: request.limits.maxOutputTokens,
                 messages: [{ role: 'user', content: request.prompt }],
                 output_config: {
-                    format: { type: 'json_schema', schema: motionlyGenerationJsonSchema },
+                    format: { type: 'json_schema', schema: toAnthropicJsonSchema(motionlyGenerationJsonSchema) },
                 },
             }, { signal });
-            return parseMotionlyGeneration(extractText(response));
+            return {
+                generation: parseMotionlyGeneration(extractText(response)),
+                usage: tokenUsage(response.usage.input_tokens, response.usage.output_tokens),
+            };
         } catch (error) {
             throw normalizeProviderError(this.name, error, signal);
         }
     }
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
+        const signal = createAnthropicRequestSignal(request);
         try {
             const response = await this.client.messages.create({
                 model: request.model, system: request.systemInstructions, max_tokens: request.limits.maxOutputTokens,
                 messages: [{ role: 'user', content: request.prompt }],
-                output_config: { format: { type: 'json_schema', schema: z.toJSONSchema(request.schema, { target: 'draft-7' }) } },
+                output_config: {
+                    format: {
+                        type: 'json_schema',
+                        schema: toAnthropicJsonSchema(z.toJSONSchema(request.schema, { target: 'draft-7' })),
+                    },
+                },
             }, { signal });
             return parseStructured(extractText(response), request.schema);
         } catch (error) { throw normalizeProviderError(this.name, error, signal); }
     }
 
     async chat(request: ChatRequest): Promise<string> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
+        const signal = createAnthropicRequestSignal(request);
         try {
             const response = await this.client.messages.create({
                 model: request.model,
@@ -85,9 +94,40 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
     }
 }
 
+const ANTHROPIC_MAX_TIMEOUT_MS = 90_000;
+
+function createAnthropicRequestSignal(request: { signal?: AbortSignal; limits: { timeoutMs: number } }): AbortSignal {
+    return createRequestSignal(request.signal, Math.min(request.limits.timeoutMs, ANTHROPIC_MAX_TIMEOUT_MS));
+}
+
 function extractText(response: Message): string {
     return requireModelText(response.content
         .filter((block) => block.type === 'text')
         .map((block) => block.text)
         .join(''));
+}
+
+const ANTHROPIC_UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
+    'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
+    'minLength', 'maxLength', 'minItems', 'maxItems',
+]);
+
+/**
+ * Anthropic rejects JSON Schema numeric, string, and array constraints in
+ * structured output requests. Keep the full Zod schema for post-response
+ * validation, but omit those unsupported transport-only constraints.
+ */
+function toAnthropicJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
+    return stripUnsupportedSchemaKeywords(schema) as Record<string, unknown>;
+}
+
+function stripUnsupportedSchemaKeywords(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(stripUnsupportedSchemaKeywords);
+    if (!value || typeof value !== 'object') return value;
+
+    return Object.fromEntries(
+        Object.entries(value)
+            .filter(([key]) => !ANTHROPIC_UNSUPPORTED_SCHEMA_KEYWORDS.has(key))
+            .map(([key, child]) => [key, stripUnsupportedSchemaKeywords(child)]),
+    );
 }

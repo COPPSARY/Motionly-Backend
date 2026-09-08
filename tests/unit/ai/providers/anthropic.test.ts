@@ -11,18 +11,20 @@ const generation = {
 
 describe('AnthropicMotionModelProvider', () => {
     it('uses Messages structured output and validates the composition', async () => {
-        const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: JSON.stringify(generation) }] });
+        const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: JSON.stringify(generation) }], usage: { input_tokens: 1_200, output_tokens: 340 } });
         const provider = new AnthropicMotionModelProvider({ apiKey: 'test-key', client: { messages: { create } } });
 
         await expect(provider.generate({
             model: 'claude-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
-        })).resolves.toEqual(generation);
+        })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-test', system: 'Motionly rules', max_tokens: 2_000,
             messages: [{ role: 'user', content: 'Create it' }],
             output_config: { format: expect.objectContaining({ type: 'json_schema' }) },
         }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+        expect(create.mock.calls[0]?.[0].output_config?.format.schema)
+            .not.toHaveProperty('properties.duration.exclusiveMinimum');
     });
 
     it('joins text blocks returned for chat', async () => {
@@ -42,5 +44,19 @@ describe('AnthropicMotionModelProvider', () => {
         const provider = new AnthropicMotionModelProvider({ apiKey: 'test-key', client: { messages: { create } } });
         await expect(provider.structured({ model: 'claude-test', systemInstructions: 'Classify.', prompt: 'Change it', schemaName: 'motionly_intent', schema: intentSchema, limits: { maxOutputTokens: 128, timeoutMs: 5_000 } })).resolves.toEqual({ intent: 'EDIT' });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({ output_config: { format: expect.objectContaining({ type: 'json_schema' }) } }), expect.anything());
+    });
+
+    it('caps long requests at 90 seconds', async () => {
+        const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: JSON.stringify(generation) }], usage: { input_tokens: 1, output_tokens: 1 } });
+        const timeout = vi.spyOn(AbortSignal, 'timeout');
+        const provider = new AnthropicMotionModelProvider({ apiKey: 'test-key', client: { messages: { create } } });
+
+        await provider.generate({
+            model: 'claude-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
+            limits: { maxOutputTokens: 2_000, timeoutMs: 120_000 },
+        });
+
+        expect(timeout).toHaveBeenCalledWith(90_000);
+        timeout.mockRestore();
     });
 });
