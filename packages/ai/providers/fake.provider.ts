@@ -3,10 +3,12 @@ import {
     ModelProviderError,
     motionlyGenerationSchema,
     type ChatRequest,
+    type ModelGenerationResult,
     type MotionlyGeneration,
     type MotionModelProvider,
     type MotionModelRequest,
     parseStructured,
+    tokenUsage,
     type StructuredModelRequest,
 } from './model.provider.js';
 
@@ -21,12 +23,13 @@ export class FakeMotionModelProvider implements MotionModelProvider {
 
     constructor(private readonly script: FakeProviderScript) {}
 
-    async generate(request: MotionModelRequest): Promise<MotionlyGeneration> {
+    async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
         requireActive(request.signal, request.limits.timeoutMs);
         const value = typeof this.script.generation === 'function'
             ? await this.script.generation(request)
             : this.script.generation;
-        const parsed = motionlyGenerationSchema.safeParse(value);
+        const candidate = isGenerationResult(value) ? value.generation : value;
+        const parsed = motionlyGenerationSchema.safeParse(candidate);
         if (!parsed.success) {
             throw new ModelProviderError(
                 'PROVIDER_OUTPUT_INVALID',
@@ -34,7 +37,12 @@ export class FakeMotionModelProvider implements MotionModelProvider {
                 false,
             );
         }
-        return parsed.data;
+        return {
+            generation: parsed.data,
+            usage: isGenerationResult(value)
+                ? tokenUsage(value.usage.inputTokens, value.usage.outputTokens)
+                : tokenUsage(undefined, undefined),
+        };
     }
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
@@ -49,6 +57,10 @@ export class FakeMotionModelProvider implements MotionModelProvider {
         requireActive(request.signal, request.limits.timeoutMs);
         return typeof this.script.chat === 'function' ? this.script.chat(request) : this.script.chat;
     }
+}
+
+function isGenerationResult(value: unknown): value is { generation: unknown; usage: { inputTokens: unknown; outputTokens: unknown } } {
+    return Boolean(value && typeof value === 'object' && 'generation' in value && 'usage' in value);
 }
 
 function requireActive(signal: AbortSignal | undefined, timeoutMs: number): void {

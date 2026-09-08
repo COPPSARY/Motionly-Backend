@@ -123,6 +123,8 @@ export class DatabaseMotionGraphRepository implements GraphProjectRepository {
                 repairAttempts: input.repairAttempts,
                 status: 'COMPLETED',
                 latencyMs: input.latencyMs,
+                inputTokens: input.inputTokens,
+                outputTokens: input.outputTokens,
             });
 
             return toGraphProject(created);
@@ -155,6 +157,8 @@ export class DatabaseMotionGraphRepository implements GraphProjectRepository {
                 repairAttempts: input.repairAttempts,
                 status: 'COMPLETED',
                 latencyMs: input.latencyMs,
+                inputTokens: input.inputTokens,
+                outputTokens: input.outputTokens,
             });
 
             return toGraphProject(overwritten);
@@ -188,5 +192,7 @@ function insertRun(executor: Executor, input: GenerationRunInput) {
         repairAttempts: input.repairAttempts,
         status: input.status,
         latencyMs: Math.max(0, Math.round(input.latencyMs)),
+        inputTokens: input.inputTokens,
+        outputTokens: input.outputTokens,
     });
 }

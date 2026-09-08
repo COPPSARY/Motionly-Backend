@@ -12,8 +12,9 @@ import {
     parseMotionlyGeneration,
     parseStructured,
     requireModelText,
+    tokenUsage,
     type ChatRequest,
-    type MotionlyGeneration,
+    type ModelGenerationResult,
     type MotionModelProvider,
     type MotionModelRequest,
     type StructuredModelRequest,
@@ -39,7 +40,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
         this.client = options.client ?? new GoogleGenAI({ apiKey: options.apiKey });
     }
 
-    async generate(request: MotionModelRequest): Promise<MotionlyGeneration> {
+    async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
         const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.models.generateContent({
@@ -50,11 +51,15 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     httpOptions: { timeout: request.limits.timeoutMs },
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
+
                     responseMimeType: 'application/json',
                     responseJsonSchema: motionlyGenerationJsonSchema,
                 },
             });
-            return parseMotionlyGeneration(requireModelText(response.text));
+            return {
+                generation: parseMotionlyGeneration(requireModelText(response.text)),
+                usage: tokenUsage(response.usageMetadata?.promptTokenCount, response.usageMetadata?.candidatesTokenCount),
+            };
         } catch (error) {
             throw normalizeProviderError(this.name, error, signal);
         }
@@ -67,7 +72,8 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                 model: request.model, contents: request.prompt,
                 config: {
                     abortSignal: signal, httpOptions: { timeout: request.limits.timeoutMs },
-                    systemInstruction: request.systemInstructions, maxOutputTokens: request.limits.maxOutputTokens,
+                    systemInstruction: request.systemInstructions,
+                    maxOutputTokens: request.limits.maxOutputTokens,
                     responseMimeType: 'application/json', responseJsonSchema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
                 },
             });
@@ -89,6 +95,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     httpOptions: { timeout: request.limits.timeoutMs },
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
+
                 },
             });
             return requireModelText(response.text);

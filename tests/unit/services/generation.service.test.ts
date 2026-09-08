@@ -144,4 +144,32 @@ describe('GenerationService', () => {
         expect((failure as AppError).status).toBe(502);
         expect((failure as AppError).message).not.toContain('API key');
     });
+
+    it('preserves sanitized provider diagnostics for server logs only', async () => {
+        const { service } = createService({
+            error: new ModelProviderError(
+                'PROVIDER_ERROR',
+                'anthropic request failed.',
+                false,
+                {
+                    httpStatus: 400,
+                    providerCode: 'invalid_request_error',
+                    providerType: 'invalid_request_error',
+                } as never,
+            ),
+        });
+
+        const failure = await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make it.' }).catch((error: unknown) => error);
+
+        expect(failure).toMatchObject({
+            status: 502,
+            message: 'The generation could not be completed. Try again.',
+            logDetails: {
+                provider: 'anthropic',
+                httpStatus: 400,
+                providerCode: 'invalid_request_error',
+                providerType: 'invalid_request_error',
+            },
+        });
+    });
 });

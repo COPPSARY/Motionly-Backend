@@ -48,6 +48,16 @@ export const motionlyGenerationJsonSchema = z.toJSONSchema(providerGenerationSch
 
 export type MotionlyGeneration = z.infer<typeof motionlyGenerationSchema>;
 
+export interface ModelTokenUsage {
+    inputTokens: number | null;
+    outputTokens: number | null;
+}
+
+export interface ModelGenerationResult {
+    generation: MotionlyGeneration;
+    usage: ModelTokenUsage;
+}
+
 export interface ModelRequestLimits {
     maxOutputTokens: number;
     timeoutMs: number;
@@ -79,7 +89,7 @@ export interface ChatRequest {
     signal?: AbortSignal;
 }
 
-export type ModelProviderName = 'gemini' | 'openai' | 'anthropic' | 'sp-cambodia';
+export type ModelProviderName = 'gemini' | 'openai' | 'anthropic' | 'sp-cambodia' | 'clauderouter' | 'hashn0de';
 
 export type ProviderErrorCode =
     | 'PROVIDER_RATE_LIMITED'
@@ -95,6 +105,7 @@ export class ModelProviderError extends Error {
         public readonly code: ProviderErrorCode,
         message: string,
         public readonly retryable: boolean,
+        public readonly diagnostics?: { httpStatus?: number; providerCode?: string; providerType?: string },
     ) {
         super(message);
         this.name = 'ModelProviderError';
@@ -104,8 +115,19 @@ export class ModelProviderError extends Error {
 export interface MotionModelProvider {
     readonly name: ModelProviderName;
     structured<T>(request: StructuredModelRequest<T>): Promise<T>;
-    generate(request: MotionModelRequest): Promise<MotionlyGeneration>;
+    generate(request: MotionModelRequest): Promise<ModelGenerationResult>;
     chat(request: ChatRequest): Promise<string>;
+}
+
+export function tokenUsage(inputTokens: unknown, outputTokens: unknown): ModelTokenUsage {
+    return {
+        inputTokens: normalizeTokenCount(inputTokens),
+        outputTokens: normalizeTokenCount(outputTokens),
+    };
+}
+
+function normalizeTokenCount(value: unknown): number | null {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
 export function parseStructured<T>(text: string, schema: z.ZodType<T>): T {
@@ -161,18 +183,18 @@ export function normalizeProviderError(
 
     const status = readStatus(error);
     if (status === 401 || status === 403) {
-        return new ModelProviderError('PROVIDER_AUTH_FAILED', `${provider} rejected the configured API key.`, false);
+        return new ModelProviderError('PROVIDER_AUTH_FAILED', `${provider} rejected the configured API key.`, false, diagnostics(error));
     }
     if (status === 404) {
-        return new ModelProviderError('PROVIDER_MODEL_UNAVAILABLE', `The configured ${provider} model is unavailable.`, false);
+        return new ModelProviderError('PROVIDER_MODEL_UNAVAILABLE', `The configured ${provider} model is unavailable.`, false, diagnostics(error));
     }
     if (status === 429) {
-        return new ModelProviderError('PROVIDER_RATE_LIMITED', `${provider} rate limit reached.`, true);
+        return new ModelProviderError('PROVIDER_RATE_LIMITED', `${provider} rate limit reached.`, true, diagnostics(error));
     }
     if (status !== undefined && status >= 500) {
-        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true);
+        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true, diagnostics(error));
     }
-    return new ModelProviderError('PROVIDER_ERROR', `${provider} request failed.`, false);
+    return new ModelProviderError('PROVIDER_ERROR', `${provider} request failed.`, false, diagnostics(error));
 }
 
 function readStatus(error: unknown): number | undefined {
@@ -180,4 +202,25 @@ function readStatus(error: unknown): number | undefined {
     if ('status' in error && typeof error.status === 'number') return error.status;
     if ('statusCode' in error && typeof error.statusCode === 'number') return error.statusCode;
     return undefined;
+}
+
+function diagnostics(error: unknown): { httpStatus?: number; providerCode?: string; providerType?: string } | undefined {
+    const httpStatus = readStatus(error);
+    const providerCode = readProviderErrorField(error, 'code');
+    const providerType = readProviderErrorField(error, 'type');
+    if (httpStatus === undefined && providerCode === undefined && providerType === undefined) return undefined;
+    return {
+        ...(httpStatus !== undefined ? { httpStatus } : {}),
+        ...(providerCode !== undefined ? { providerCode } : {}),
+        ...(providerType !== undefined ? { providerType } : {}),
+    };
+}
+
+function readProviderErrorField(error: unknown, field: 'code' | 'type'): string | undefined {
+    if (!error || typeof error !== 'object' || !('error' in error)) return undefined;
+    const value = error.error;
+    if (!value || typeof value !== 'object' || !(field in value)) return undefined;
+    const fieldValue = (value as Record<string, unknown>)[field];
+    if (typeof fieldValue !== 'string') return undefined;
+    return /^[a-zA-Z0-9._-]{1,128}$/.test(fieldValue) ? fieldValue : undefined;
 }

@@ -171,6 +171,20 @@ describe('createMotionGraph', () => {
         }));
     });
 
+    it('records accumulated provider token usage with a completed generation run', async () => {
+        const harness = createHarness({
+            intent: 'EDIT',
+            candidates: [{ generation: validCandidate, usage: { inputTokens: 1_200, outputTokens: 340 } } as unknown as MotionlyGeneration],
+        });
+
+        await harness.graph.invoke(input('Make the headline larger.'));
+
+        expect(harness.repository.overwriteForGraph).toHaveBeenCalledWith('proj_1', expect.objectContaining({
+            inputTokens: 1_200,
+            outputTokens: 340,
+        }));
+    });
+
     it('records the user message once for a generation request', async () => {
         const harness = createHarness({ intent: 'EDIT' });
 
@@ -189,7 +203,7 @@ describe('createMotionGraph', () => {
     it('sends every relevant Motionly skill and the current project source to the model', async () => {
         const harness = createHarness({ intent: 'EDIT' });
         const bundle = await loadSkillBundle();
-        const expected = bundle.skills.filter((skill) => ['core', 'typography', 'timeline'].includes(skill.id));
+        const expected = bundle.skills.filter((skill) => ['typography', 'timeline'].includes(skill.id));
 
         const result = await harness.graph.invoke(input('Make the title typography larger and retime the timeline duration.'));
 
@@ -212,6 +226,28 @@ describe('createMotionGraph', () => {
         });
         expect(harness.generateRequests[0]?.prompt).toContain(currentProject.compositionHtml);
         expect(harness.generateRequests[0]?.prompt).toContain('Make the title typography larger and retime the timeline duration.');
+    });
+
+    it('wraps a terse generation request in the Motionly production brief', async () => {
+        const harness = createHarness({ intent: 'CREATE' });
+
+        await harness.graph.invoke(input('make a launch video'));
+
+        const prompt = harness.generateRequests[0]?.prompt ?? '';
+        expect(prompt).toContain('Motionly production brief:');
+        expect(prompt).toContain('Original user request:\nmake a launch video');
+        expect(prompt).toContain('3-6 connected beats');
+    });
+
+    it('leaves a detailed generation request unwrapped', async () => {
+        const harness = createHarness({ intent: 'CREATE' });
+        const detailed = 'Create a 12 second launch film that opens on the dashboard, shows the sync friction, then reveals the automation panel.';
+
+        await harness.graph.invoke(input(detailed));
+
+        const prompt = harness.generateRequests[0]?.prompt ?? '';
+        expect(prompt).toContain(detailed);
+        expect(prompt).not.toContain('Motionly production brief:');
     });
 
     it('routes a reported runtime error to FIX without asking the model to classify it', async () => {

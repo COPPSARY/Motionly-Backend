@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { enhanceMotionlyPrompt } from '../../../packages/motionly-skills/prompt-enhancer.js';
+import {
+  enhanceMotionlyPrompt,
+  MIN_PROMPT_WORDS,
+  needsEnhancement,
+} from '../../../packages/motionly-skills/prompt-enhancer.js';
 
 describe('Motionly prompt enhancer', () => {
   it('adds the SaaS film structure without changing the original request', () => {
@@ -18,5 +22,25 @@ describe('Motionly prompt enhancer', () => {
     expect(enhanced).toContain('Original user request:\nMake the headline yellow.');
     expect(enhanced).toContain('preserving the existing visual language');
     expect(enhanced).not.toContain('Build 3-6 connected beats');
+  });
+});
+
+describe('needsEnhancement', () => {
+  it('flags a terse request that lacks direction', () => {
+    expect(needsEnhancement('make a video about my app')).toBe(true);
+  });
+
+  it('leaves a detailed request untouched', () => {
+    expect(needsEnhancement(
+      'Create a 12 second launch film that opens on the dashboard, shows the sync friction, then reveals our new automation panel.',
+    )).toBe(false);
+  });
+
+  it('counts words after collapsing surrounding whitespace', () => {
+    const belowThreshold = Array(MIN_PROMPT_WORDS - 1).fill('word').join('  ');
+    const atThreshold = Array(MIN_PROMPT_WORDS).fill('word').join(' ');
+
+    expect(needsEnhancement(`  ${belowThreshold}  `)).toBe(true);
+    expect(needsEnhancement(atThreshold)).toBe(false);
   });
 });

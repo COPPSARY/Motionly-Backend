@@ -30,6 +30,24 @@ describe('createModelProvider', () => {
         expect(provider.name).toBe('sp-cambodia');
     });
 
+    it('builds the ClaudeRouter provider from its key', () => {
+        const provider = createModelProvider({
+            aiProvider: 'clauderouter',
+            claudeRouterApiKey: 'clauderouter-key',
+        });
+
+        expect(provider.name).toBe('clauderouter');
+    });
+
+    it('builds the hashn0de provider from its key', () => {
+        const provider = createModelProvider({
+            aiProvider: 'hashn0de',
+            hashn0deApiKey: 'hashn0de-key',
+        });
+
+        expect(provider.name).toBe('hashn0de');
+    });
+
     it('names the missing variable when the selected provider has no key', () => {
         expect(() => createModelProvider({ aiProvider: 'openai', geminiApiKey: 'gemini-key' }))
             .toThrowError(/OPENAI_API_KEY/);
@@ -43,5 +61,15 @@ describe('createModelProvider', () => {
     it('names the SP Cambodia variable when its selected key is missing', () => {
         expect(() => createModelProvider({ aiProvider: 'sp-cambodia' }))
             .toThrowError(/SP_CAMBO_API_KEY/);
+    });
+
+    it('names the ClaudeRouter variable when its selected key is missing', () => {
+        expect(() => createModelProvider({ aiProvider: 'clauderouter' }))
+            .toThrowError(/CLAUDEROUTER_API_KEY/);
+    });
+
+    it('names the hashn0de variable when its selected key is missing', () => {
+        expect(() => createModelProvider({ aiProvider: 'hashn0de' }))
+            .toThrowError(/HASHN0DE_API_KEY/);
     });
 });

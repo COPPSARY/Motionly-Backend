@@ -11,15 +11,15 @@ const generation = {
 
 describe('OpenAIMotionModelProvider', () => {
     it('uses the Responses API structured-output format', async () => {
-        const create = vi.fn().mockResolvedValue({ output_text: JSON.stringify(generation) });
+        const create = vi.fn().mockResolvedValue({ output_text: JSON.stringify(generation), usage: { input_tokens: 1_200, output_tokens: 340 } });
         const provider = new OpenAIMotionModelProvider({ apiKey: 'test-key', client: { responses: { create } } });
 
         await expect(provider.generate({
             model: 'gpt-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
-        })).resolves.toEqual(generation);
+        })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
-            model: 'gpt-test', instructions: 'Motionly rules', input: 'Create it', max_output_tokens: 2_000,
+            model: 'gpt-test', instructions: 'Motionly rules', input: 'Create it',
             text: { format: expect.objectContaining({ type: 'json_schema', name: 'motionly_generation', strict: true }) },
         }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
     });

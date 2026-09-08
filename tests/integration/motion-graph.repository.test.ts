@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MotionlyGeneration } from '../../packages/ai/providers/model.provider.js';
 import { createDatabase, type Database } from '../../packages/database/client.js';
-import { users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
+import { generationRuns, users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
 import { DatabaseMotionGraphRepository } from '../../src/repositories/motion-graph.repository.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -59,11 +59,16 @@ describe.skipIf(!databaseUrl)('DatabaseMotionGraphRepository', () => {
                     selectedSkills: ['core', 'write-motionly'],
                     repairAttempts: 0,
                     latencyMs: 1_234,
+                    inputTokens: 1_200,
+                    outputTokens: 340,
                 });
                 expect(created).toMatchObject({ workspaceId, title: 'Launch Film', revision: 1, scenes: generation.scenes });
+                await expect(transaction.select({ inputTokens: generationRuns.inputTokens, outputTokens: generationRuns.outputTokens })
+                    .from(generationRuns)).resolves.toContainEqual({ inputTokens: 1_200, outputTokens: 340 });
 
                 await expect(repository.createForGraph(workspaceId, viewerId, {
                     message: 'Make me one too.', generation, model: 'test-model', selectedSkills: [], repairAttempts: 0, latencyMs: 10,
+                    inputTokens: 5, outputTokens: 3,
                 })).resolves.toBeNull();
 
                 const projectId = created!.id;
@@ -81,11 +86,13 @@ describe.skipIf(!databaseUrl)('DatabaseMotionGraphRepository', () => {
                 await expect(repository.overwriteForGraph(projectId, {
                     userId, expectedRevision: 99, intent: 'EDIT', generation: edited,
                     model: 'test-model', selectedSkills: ['core'], repairAttempts: 0, latencyMs: 50,
+                    inputTokens: 6, outputTokens: 4,
                 })).resolves.toBeNull();
 
                 const overwritten = await repository.overwriteForGraph(projectId, {
                     userId, expectedRevision: 1, intent: 'EDIT', generation: edited,
                     model: 'test-model', selectedSkills: ['core'], repairAttempts: 1, latencyMs: 2_000,
+                    inputTokens: 700, outputTokens: 200,
                 });
                 expect(overwritten).toMatchObject({ id: projectId, title: 'Launch Film v2', revision: 2 });
 
@@ -98,6 +105,7 @@ describe.skipIf(!databaseUrl)('DatabaseMotionGraphRepository', () => {
                 await repository.recordRun({
                     projectId, baseRevision: 2, savedRevision: null, intent: 'FIX', model: 'test-model',
                     selectedSkills: ['core'], repairAttempts: 2, status: 'FAILED', latencyMs: 3_000,
+                    inputTokens: 900, outputTokens: 300,
                 });
 
                 transaction.rollback();

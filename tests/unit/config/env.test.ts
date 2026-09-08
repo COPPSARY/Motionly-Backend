@@ -67,6 +67,28 @@ describe('parseEnvironment', () => {
     expect(environment.spCambodiaApiKey).toBe('sp-cambodia-key');
   });
 
+  it('parses the ClaudeRouter provider and API key', () => {
+    const environment = parseEnvironment({
+      ...valid,
+      AI_PROVIDER: 'clauderouter',
+      CLAUDEROUTER_API_KEY: 'clauderouter-key',
+    });
+
+    expect(environment.aiProvider).toBe('clauderouter');
+    expect(environment.claudeRouterApiKey).toBe('clauderouter-key');
+  });
+
+  it('parses the hashn0de provider and API key', () => {
+    const environment = parseEnvironment({
+      ...valid,
+      AI_PROVIDER: 'hashn0de',
+      HASHN0DE_API_KEY: 'hashn0de-key',
+    });
+
+    expect(environment.aiProvider).toBe('hashn0de');
+    expect(environment.hashn0deApiKey).toBe('hashn0de-key');
+  });
+
   it('uses AI_MODEL as the only configured model', () => {
     const environment = parseEnvironment({
       ...valid,

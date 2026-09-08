@@ -5,6 +5,7 @@ import type { Logger } from 'pino';
 import type { Request, RequestHandler, Response } from 'express';
 
 import { serializeLogError } from '../config/logger.js';
+import { AppError } from '../errors.js';
 import type { AuthenticatedRequest } from '../types/http.js';
 
 type RequestWithId = Request & { id?: string };
@@ -56,6 +57,7 @@ export function createRequestLogger(logger: Logger, nodeEnv: 'development' | 'te
         statusCode,
         responseTime: Math.round(responseTime),
         ...(error && !isSignedOutSessionProbe ? { error: serializeLogError(error, nodeEnv === 'development') } : {}),
+        ...(error instanceof AppError && error.logDetails ? { provider: error.logDetails } : {}),
       }, `${request.method} ${path} ${statusCode}`);
     });
     next();

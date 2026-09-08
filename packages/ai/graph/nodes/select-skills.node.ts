@@ -2,6 +2,8 @@ import { routeSkills } from '../../../motionly-skills/router.js';
 import { requireGenerationIntent, type ResolvedMotionGraphDependencies } from '../dependencies.js';
 import type { MotionGraphState, MotionGraphUpdate } from '../state.js';
 
+export const MAX_SKILL_PROMPT_CHARACTERS = 48_000;
+
 /**
  * Loads the skill bundle once and keeps only the guidance this request needs, so
  * prompts stay small. `core` is always selected by the router.
@@ -13,6 +15,7 @@ export function createSelectSkillsNode(dependencies: ResolvedMotionGraphDependen
         const selectedSkills = routeSkills(bundle, {
             intent,
             prompt: state.message,
+            maxCharacters: MAX_SKILL_PROMPT_CHARACTERS,
         });
         dependencies.onSkillsSelected({
             intent,

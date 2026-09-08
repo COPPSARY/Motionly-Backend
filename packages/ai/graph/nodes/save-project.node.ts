@@ -26,6 +26,8 @@ export function createSaveProjectNode(dependencies: ResolvedMotionGraphDependenc
                 selectedSkills,
                 repairAttempts: state.repairAttempts,
                 latencyMs,
+                inputTokens: state.tokenUsage.inputTokens,
+                outputTokens: state.tokenUsage.outputTokens,
             });
             if (!created) {
                 return { response: { type: 'error', code: 'FORBIDDEN', message: 'Viewer access is read-only.' } };
@@ -43,6 +45,8 @@ export function createSaveProjectNode(dependencies: ResolvedMotionGraphDependenc
             selectedSkills,
             repairAttempts: state.repairAttempts,
             latencyMs,
+            inputTokens: state.tokenUsage.inputTokens,
+            outputTokens: state.tokenUsage.outputTokens,
         });
 
         if (!overwritten) {

@@ -19,6 +19,8 @@ export function createReportFailureNode(dependencies: ResolvedMotionGraphDepende
                 repairAttempts: state.repairAttempts,
                 status: 'FAILED',
                 latencyMs: dependencies.now() - state.startedAtMs,
+                inputTokens: state.tokenUsage.inputTokens,
+                outputTokens: state.tokenUsage.outputTokens,
             });
         }
 

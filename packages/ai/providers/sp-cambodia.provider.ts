@@ -9,8 +9,9 @@ import {
     parseMotionlyGeneration,
     parseStructured,
     requireModelText,
+    tokenUsage,
     type ChatRequest,
-    type MotionlyGeneration,
+    type ModelGenerationResult,
     type MotionModelProvider,
     type MotionModelRequest,
     type StructuredModelRequest,
@@ -41,7 +42,7 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
         });
     }
 
-    async generate(request: MotionModelRequest): Promise<MotionlyGeneration> {
+    async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
         const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.responses.create({
@@ -49,6 +50,7 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
                 instructions: request.systemInstructions,
                 input: request.prompt,
                 max_output_tokens: request.limits.maxOutputTokens,
+
                 text: {
                     format: {
                         type: 'json_schema',
@@ -58,7 +60,10 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
                     },
                 },
             }, { signal });
-            return parseMotionlyGeneration(requireModelText(response.output_text));
+            return {
+                generation: parseMotionlyGeneration(requireModelText(response.output_text)),
+                usage: tokenUsage(response.usage?.input_tokens, response.usage?.output_tokens),
+            };
         } catch (error) {
             throw normalizeProviderError(this.name, error, signal);
         }
@@ -72,6 +77,7 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
                 instructions: request.systemInstructions,
                 input: request.prompt,
                 max_output_tokens: request.limits.maxOutputTokens,
+
                 text: {
                     format: {
                         type: 'json_schema',
@@ -95,6 +101,7 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
                 instructions: request.systemInstructions,
                 input: request.messages,
                 max_output_tokens: request.limits.maxOutputTokens,
+
             }, { signal });
             return requireModelText(response.output_text);
         } catch (error) {

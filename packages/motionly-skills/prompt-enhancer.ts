@@ -1,3 +1,16 @@
+/** Requests shorter than this carry too little direction for a coherent film. */
+export const MIN_PROMPT_WORDS = 12;
+
+/**
+ * A cheap, deterministic gate for whether a request needs the production brief
+ * wrapped around it. Terse asks like "make a video about my app" leave the model
+ * to invent the whole structure; anything with real direction passes through.
+ */
+export function needsEnhancement(prompt: string): boolean {
+  const words = prompt.trim().split(/\s+/).filter(Boolean);
+  return words.length < MIN_PROMPT_WORDS;
+}
+
 export function enhanceMotionlyPrompt(prompt: string, intent: 'CREATE' | 'EDIT'): string {
   const request = prompt.trim();
   const brief = intent === 'CREATE'
