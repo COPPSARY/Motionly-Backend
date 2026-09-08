@@ -162,6 +162,22 @@
       "sha256": "bd44a1164dce140cf3cb928e2a9be75ace9778ff07f7eecc8bc7e65c3a41ee41"
     },
     {
+      "id": "small-edits",
+      "file": "small-edits/SKILL.md",
+      "tags": [
+        "edit",
+        "text",
+        "color",
+        "font",
+        "spacing",
+        "style",
+        "simple",
+        "animation",
+        "add"
+      ],
+      "sha256": "ec7c531463fa672ef4e4390e64fcf6c6bb027f7eacccc53c2d5fc1e0959fea2d"
+    },
+    {
       "id": "marketing",
       "file": "marketing/SKILL.md",
       "tags": [
